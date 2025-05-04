@@ -94,11 +94,15 @@ class GameView(BoxLayout):
     def _build_controls(self):
         self.control_panel = BoxLayout(orientation='vertical', size_hint_y=0.35)
         top = BoxLayout()
+
         top.add_widget(Label(text=self.lang.get('bet_amount')))
+
         self.bet_input = TextInput(text='10', multiline=False, input_filter='int')
         top.add_widget(self.bet_input)
+
         self.balance_label = Label(text='')
         top.add_widget(self.balance_label)
+
         self.control_panel.add_widget(top)
         row = BoxLayout()
         for i in range(6):
@@ -114,7 +118,8 @@ class GameView(BoxLayout):
         self.controller.place_bet(horse_number, amount)
 
     def update_balance(self, balance):
-        self.balance_label.text = f"Balance: ${balance}"
+        label = self.lang.get('balance')
+        self.balance_label.text = f"{label}: ${balance}"
 
     def start_race_animation(self, horse_speeds, finish_x):
         self.horse_speeds = horse_speeds
