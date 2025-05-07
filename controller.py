@@ -1,4 +1,3 @@
-### controller.py
 from kivy.clock import Clock
 from model import GameState
 
@@ -9,6 +8,7 @@ class GameController:
     def __init__(self, model: GameState, view):
         self.model = model
         self.view = view
+        self.view.controller = self
         self.view.update_balance(self.model.balance)
 
     def place_bet(self, horse_number, amount):
@@ -17,6 +17,11 @@ class GameController:
         except ValueError as e:
             print(e)
             return
+        # hide the betting panel
+        self.view.control_panel.opacity = 0
+        self.view.control_panel.disabled = True
+
+        # run the race
         self.model.setup_race()
         self.view.start_race_animation(
             self.model.horse_speeds,
@@ -24,9 +29,12 @@ class GameController:
         )
 
     def on_race_end(self):
+        # resolve race and update balance
         self.model.resolve_race()
         self.view.update_balance(self.model.balance)
+        # show the winner popup
         self.view.show_result(self.model.winner)
+        # after showing result, reset for next round
         Clock.schedule_once(lambda dt: self._reset(), 2)
 
     def _reset(self):
