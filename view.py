@@ -80,10 +80,7 @@ class GameView(FloatLayout):
         self.result_popup = None
 
     def _build_controls(self):
-        # FloatLayout positioning for the panel
-        # Panel container
         self.control_panel = BoxLayout(orientation='vertical', size_hint=(1, 0.2), pos_hint={'x':0, 'y':0})
-        # White background
         with self.control_panel.canvas.before:
             Color(1, 1, 1, 1)
             self.bg_rect = Rectangle(pos=self.control_panel.pos, size=self.control_panel.size)
@@ -91,18 +88,18 @@ class GameView(FloatLayout):
             pos=lambda *a: setattr(self.bg_rect, 'pos', self.control_panel.pos),
             size=lambda *a: setattr(self.bg_rect, 'size', self.control_panel.size)
         )
-        # Top row: bet amount + balance
         top = BoxLayout(size_hint=(1, 0.4))
-        top.add_widget(Label(text=self.lang.get('bet_amount'), color=(0, 0, 0, 1)))
-        self.bet_input = TextInput(text='10', multiline=False, input_filter='int', foreground_color=(0, 0, 0, 1), background_color=(1, 1, 1, 1))
+        top.add_widget(Label(text=self.lang.get('bet_amount'), color=(0,0,0,1)))
+        self.bet_input = TextInput(text='10', multiline=False, input_filter='int',
+                                   foreground_color=(0,0,0,1), background_color=(1,1,1,1))
         top.add_widget(self.bet_input)
-        self.balance_label = Label(text='', color=(0, 0, 0, 1))
+        self.balance_label = Label(text='', color=(0,0,0,1))
         top.add_widget(self.balance_label)
         self.control_panel.add_widget(top)
-        # Bottom row: horse buttons
+
         row = BoxLayout(size_hint=(1, 0.6))
         for i in range(6):
-            btn = Button(text=str(i+1), color=(0, 0, 0, 1), background_color=(1, 1, 1, 1))
+            btn = Button(text=str(i+1), color=(0,0,0,1), background_color=(1,1,1,1))
             btn.bind(on_press=self._on_bet)
             row.add_widget(btn)
         self.control_panel.add_widget(row)
@@ -117,31 +114,38 @@ class GameView(FloatLayout):
         self.balance_label.text = f"{self.lang.get('balance')}: ${balance}"
 
     def start_race_animation(self, horse_speeds, finish_x):
-        self.horse_speeds = horse_speeds
         self.finish_x = finish_x
-        self.event = Clock.schedule_interval(self._animate, 1/60)
+        self.event = Clock.schedule_interval(self._animate, 1 / 60)
 
     def _animate(self, dt):
-        finished = False
+        race_finished = self.controller.update_speeds_and_positions()
         for sprite in self.track.horses:
-            speed = self.horse_speeds[sprite.number]
-            new_x = sprite.x + speed
-            if new_x + sprite.width >= self.finish_x:
-                new_x = self.finish_x - sprite.width
-                finished = True
+            horse_num = sprite.number
+            # Get current horse position from model
+            horse_pos = self.controller.model.horses[horse_num - 1].position
+            new_x = self.track.x + horse_pos
+            # Clamp position to finish line
+            if new_x + sprite.width >= self.track.x + self.finish_x:
+                new_x = self.track.x + self.finish_x - sprite.width
             sprite.x = new_x
-        if finished:
+
+        if race_finished:
             Clock.unschedule(self.event)
             self.controller.on_race_end()
 
     def reset_track(self):
         self.track._setup()
-        # show panel again
         self.control_panel.opacity = 1
         self.control_panel.disabled = False
 
     def show_result(self, winner):
         msg = f"Horse number {winner} wins!"
-        self.result_popup = Popup(title='', content=Label(text=msg, font_size='24sp'), size_hint=(None, None), size=(300, 200), auto_dismiss=False)
+        self.result_popup = Popup(
+            title='Race Result',
+            content=Label(text=msg, font_size='24sp'),
+            size_hint=(None, None),
+            size=(300, 200),
+            auto_dismiss=False)
         self.result_popup.open()
         Clock.schedule_once(lambda dt: self.result_popup.dismiss(), 2)
+

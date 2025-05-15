@@ -1,4 +1,3 @@
-### model.py
 from collections import deque
 import random
 
@@ -54,7 +53,6 @@ class GameState:
         self.bet = None
         self.winner = None
         self.horses = [HorseModel(i+1) for i in range(6)]
-        self.horse_speeds = {}
         self.undo_manager = undo_manager
 
     def place_bet(self, horse_number, amount):
@@ -64,13 +62,30 @@ class GameState:
         self.undo_manager.record(('bet', self.bet))
 
     def setup_race(self):
-        self.winner = random.randint(1, len(self.horses))
+        self.winner = None
+        start_x = 100  # or get from view/track width * 0.1 if you want it dynamic
         for horse in self.horses:
-            self.horse_speeds[horse.number] = 5 if horse.number == self.winner else random.uniform(1, 3)
-            horse.position = 0
+            horse.position = start_x
+            horse.speed = random.uniform(1, 3)
+
+    def setup_race_speeds(self):
+        self.winner = None
+        for horse in self.horses:
+            horse.speed = random.uniform(1, 3)  # or whatever speed logic you want
+
+    def update_speeds(self):
+        """
+        Dynamically adjust each horse's speed with small random changes.
+        Clamp speed between a min and max value.
+        """
+        for horse in self.horses:
+            # Add small random fluctuation to speed
+            horse.speed += random.uniform(-0.2, 0.2)
+            # Clamp speed limits
+            horse.speed = max(0.5, min(horse.speed, 4))
 
     def resolve_race(self):
-        if not self.bet:
+        if not self.bet or self.winner is None:
             return
         if self.bet.horse_number == self.winner:
             win_amount = self.bet.amount * len(self.horses)
@@ -82,6 +97,6 @@ class GameState:
     def reset(self):
         self.bet = None
         self.winner = None
-        self.horse_speeds.clear()
         for horse in self.horses:
             horse.position = 0
+            horse.speed = 0

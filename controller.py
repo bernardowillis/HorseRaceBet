@@ -17,26 +17,47 @@ class GameController:
         except ValueError as e:
             print(e)
             return
-        # hide the betting panel
+
+        # Capture current horse widget x positions as starting positions
+        for horse_widget in self.view.track.horses:
+            horse_model = self.model.horses[horse_widget.number - 1]
+            horse_model.position = horse_widget.x  # Store absolute start x
+
+        # Hide betting UI
         self.view.control_panel.opacity = 0
         self.view.control_panel.disabled = True
 
-        # run the race
-        self.model.setup_race()
+        # Setup race speeds
+        self.model.setup_race_speeds()  # adjust to only set speeds, no resetting position
+
+        # Start animation
         self.view.start_race_animation(
-            self.model.horse_speeds,
+            None,
             finish_x=self.view.track.width * 0.9
         )
 
+    def update_speeds_and_positions(self):
+        """
+        Update dynamic speeds and advance horse positions.
+        Returns True if race finished, else False.
+        """
+        self.model.update_speeds()
+        finish_x = self.view.track.width * 0.9
+        for horse in self.model.horses:
+            horse.position += horse.speed
+            if horse.position >= finish_x and self.model.winner is None:
+                self.model.winner = horse.number
+                return True
+        return False
+
     def on_race_end(self):
-        # resolve race and update balance
         self.model.resolve_race()
         self.view.update_balance(self.model.balance)
-        # show the winner popup
         self.view.show_result(self.model.winner)
-        # after showing result, reset for next round
         Clock.schedule_once(lambda dt: self._reset(), 2)
 
     def _reset(self):
         self.model.reset()
         self.view.reset_track()
+        self.view.control_panel.opacity = 1
+        self.view.control_panel.disabled = False
