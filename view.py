@@ -7,6 +7,9 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
 from kivy.graphics import Color, Ellipse, Rectangle, Line
 from kivy.clock import Clock
+# from kivy_garden.svg import Svg
+from kivy.uix.image import Image
+
 
 class RaceTrack(Widget):
     def __init__(self, **kwargs):
@@ -21,6 +24,20 @@ class RaceTrack(Widget):
         self.horses = []
         self.bind(size=lambda *a: Clock.schedule_once(self._setup, 0))
 
+        # Load and add finish line image
+        self.finish_line_image = Image(
+            source='assets/images/finish_line_3.png',
+            allow_stretch=True,
+            keep_ratio=False
+        )
+        self.add_widget(self.finish_line_image)
+        self.bind(pos=self._update_finish_line, size=self._update_finish_line)
+
+    def _update_finish_line(self, *args):
+        finish_x = self.x + self.width * 0.9
+        self.finish_line_image.size = (60, self.height)  # adjust width as you like
+        self.finish_line_image.pos = (finish_x, self.y)
+
     def _update_bg(self, *args):
         self.bg.pos = self.pos
         self.bg.size = self.size
@@ -29,10 +46,11 @@ class RaceTrack(Widget):
         self.canvas.after.clear()
         with self.canvas.after:
             Color(0, 0, 0, 1)
-            Line(points=[self.width * 0.9, 0, self.width * 0.9, self.height], width=2)
+            Line(points=[self.width * 0.9, 0, self.width * 0.9, self.height], width=0.5)
 
     def _setup(self, dt=None):
-        self.clear_widgets()
+        for horse in self.horses:
+            self.remove_widget(horse)
         self.horses = []
         num_horses = 6
         tmp = HorseSprite(1)
