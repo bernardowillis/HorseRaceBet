@@ -30,7 +30,7 @@ class RaceTrack(Widget):
 
         # Image finish line
         self.finish_line_image = Image(
-            source='assets/images/finish_line_3.png',
+            source='assets/images/finish_line_1.png',
             allow_stretch=True,
             keep_ratio=False
         )
@@ -152,21 +152,30 @@ class GameView(FloatLayout):
         self.finish_x = finish_x
         self.event = Clock.schedule_interval(self._animate, 1 / 60)
 
+    # def _animate(self, dt):
+    #     race_finished = self.controller.update_speeds_and_positions()
+    #     for sprite in self.track.horses:
+    #         horse_num = sprite.number
+    #         # Get current horse position from model
+    #         horse_pos = self.controller.model.horses[horse_num - 1].position
+    #         new_x = self.track.x + horse_pos
+    #         # Clamp position to finish line
+    #         if new_x + sprite.width >= self.track.x + self.finish_x:
+    #             new_x = self.track.x + self.finish_x - sprite.width
+    #         sprite.x = new_x
+    #
+    #     if race_finished:
+    #         Clock.unschedule(self.event)
+    #         self.controller.on_race_end()
+
     def _animate(self, dt):
-        race_finished = self.controller.update_speeds_and_positions()
+        self.controller.update_speeds_and_positions()  # we no longer expect True/False
+
         for sprite in self.track.horses:
             horse_num = sprite.number
-            # Get current horse position from model
             horse_pos = self.controller.model.horses[horse_num - 1].position
             new_x = self.track.x + horse_pos
-            # Clamp position to finish line
-            if new_x + sprite.width >= self.track.x + self.finish_x:
-                new_x = self.track.x + self.finish_x - sprite.width
-            sprite.x = new_x
-
-        if race_finished:
-            Clock.unschedule(self.event)
-            self.controller.on_race_end()
+            sprite.x = new_x  # Don't clamp anymore
 
     def reset_track(self):
         self.track._setup()

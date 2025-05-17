@@ -36,19 +36,33 @@ class GameController:
             finish_x=self.view.track.width * 0.9
         )
 
+    # def update_speeds_and_positions(self):
+    #     """
+    #     Update dynamic speeds and advance horse positions.
+    #     Returns True if race finished, else False.
+    #     """
+    #     self.model.update_speeds()
+    #     finish_x = self.view.track.width * 0.9
+    #     for horse in self.model.horses:
+    #         horse.position += horse.speed
+    #         if horse.position >= finish_x and self.model.winner is None:
+    #             self.model.winner = horse.number
+    #             return True
+    #     return False
+
     def update_speeds_and_positions(self):
-        """
-        Update dynamic speeds and advance horse positions.
-        Returns True if race finished, else False.
-        """
         self.model.update_speeds()
         finish_x = self.view.track.width * 0.9
+
         for horse in self.model.horses:
             horse.position += horse.speed
+
+            # print(f"self.model.winner = {self.model.winner}")
             if horse.position >= finish_x and self.model.winner is None:
+                print(f"there is a winner: {horse.number}")
                 self.model.winner = horse.number
-                return True
-        return False
+                self.view.show_result(horse.number)
+                Clock.schedule_once(lambda dt: self.on_race_end(), 2)
 
     def on_race_end(self):
         self.model.resolve_race()
@@ -57,7 +71,10 @@ class GameController:
         Clock.schedule_once(lambda dt: self._reset(), 2)
 
     def _reset(self):
+        # Stop the animation loop
+        Clock.unschedule(self.view.event)
+
+        # Reset game state and visuals
         self.model.reset()
         self.view.reset_track()
-        self.view.control_panel.opacity = 1
-        self.view.control_panel.disabled = False
+
