@@ -57,18 +57,19 @@ class GameController:
         for horse in self.model.horses:
             horse.position += horse.speed
 
-            # print(f"self.model.winner = {self.model.winner}")
             if horse.position >= finish_x and self.model.winner is None:
                 print(f"there is a winner: {horse.number}")
                 self.model.winner = horse.number
                 self.view.show_result(horse.number)
-                Clock.schedule_once(lambda dt: self.on_race_end(), 2)
 
-    def on_race_end(self):
-        self.model.resolve_race()
-        self.view.update_balance(self.model.balance)
-        self.view.show_result(self.model.winner)
-        Clock.schedule_once(lambda dt: self._reset(), 2)
+                # Combine dismiss + resolve + reset in one scheduled action
+                def finish_race(dt):
+                    self.view.result_popup.dismiss()
+                    self.model.resolve_race()
+                    self.view.update_balance(self.model.balance)
+                    self._reset()
+
+                Clock.schedule_once(finish_race, 2)
 
     def _reset(self):
         # Stop the animation loop
