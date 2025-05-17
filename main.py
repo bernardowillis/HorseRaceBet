@@ -5,9 +5,6 @@ from model import GameState, UndoRedoManager
 from view import GameView
 from controller import GameController
 
-import os
-print("Current working dir:", os.getcwd())
-
 class HorseRaceGameApp(App):
     """
     Main application class. Initializes MVC components and launches the app.

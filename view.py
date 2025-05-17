@@ -143,6 +143,7 @@ class GameView(FloatLayout):
         self.add_widget(self.control_panel)
 
     def _on_bet(self, instance):
+        print(f"You chose horse nr. {instance.text}")
         horse_number = int(instance.text)
         amount = int(self.bet_input.text)
         self.controller.place_bet(horse_number, amount)
@@ -184,14 +185,43 @@ class GameView(FloatLayout):
         self.control_panel.opacity = 1
         self.control_panel.disabled = False
 
-    def show_result(self, winner):
-        msg = f"Horse number {winner} wins!"
+    from kivy.uix.boxlayout import BoxLayout
+
+    def show_result(self, winner, player_won, payout):
+        # First line: which horse won
+        line1 = Label(
+            text=f"Horse number {winner} wins!",
+            font_size='22sp',
+            bold=True,
+            color=(1, 1, 1, 1)
+        )
+
+        # Second line: win/loss info
+        if player_won:
+            line2 = Label(
+                text=f"You won ${payout}!",
+                font_size='18sp',
+                color=(0, 0.5, 0, 1)  # greenish
+            )
+        else:
+            line2 = Label(
+                text=f"You lost ${payout}.",
+                font_size='18sp',
+                color=(0.6, 0, 0, 1)  # reddish
+            )
+
+        # Layout to stack both lines
+        content = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        content.add_widget(line1)
+        content.add_widget(line2)
+
         self.result_popup = Popup(
             title='Race Result',
-            content=Label(text=msg, font_size='24sp'),
+            content=content,
             size_hint=(None, None),
             size=(300, 200),
-            auto_dismiss=False)
+            auto_dismiss=False
+        )
         self.result_popup.open()
-        Clock.schedule_once(lambda dt: self.result_popup.dismiss(), 2)
+
 

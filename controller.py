@@ -60,7 +60,15 @@ class GameController:
             if horse.position >= finish_x and self.model.winner is None:
                 print(f"there is a winner: {horse.number}")
                 self.model.winner = horse.number
-                self.view.show_result(horse.number)
+
+                # Determine win/loss before race ends
+                bet = self.model.bet
+                player_won = (horse.number == bet.horse_number)
+                amount = bet.amount
+                payout = amount * len(self.model.horses) if player_won else -amount
+
+                # Pass win/loss info to the view
+                self.view.show_result(horse.number, player_won, abs(payout))
 
                 # Combine dismiss + resolve + reset in one scheduled action
                 def finish_race(dt):
