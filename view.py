@@ -14,56 +14,73 @@ from kivy.uix.image import Image
 class RaceTrack(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # White background for the track
-        with self.canvas:
-            Color(1, 1, 1, 1)
-            self.bg = Rectangle(pos=self.pos, size=self.size)
-        self.bind(pos=self._update_bg, size=self._update_bg)
-        # Finish line
-        self.bind(pos=self._draw_line, size=self._draw_line)
-        self.horses = []
-        self.bind(size=lambda *a: Clock.schedule_once(self._setup, 0))
 
-        # Load and add finish line image
+        with self.canvas.before:
+            # Grass top
+            Color(0.3, 0.7, 0.3, 1)  # green
+            self.grass_top = Rectangle()
+
+            # Grass bottom
+            Color(0.3, 0.7, 0.3, 1)
+            self.grass_bottom = Rectangle()
+
+            # Track background (sand)
+            Color(0.82, 0.71, 0.55, 1)  # light brown
+            self.track_bg = Rectangle()
+
+        # Image finish line
         self.finish_line_image = Image(
             source='assets/images/finish_line_3.png',
             allow_stretch=True,
             keep_ratio=False
         )
         self.add_widget(self.finish_line_image)
-        self.bind(pos=self._update_finish_line, size=self._update_finish_line)
 
-    def _update_finish_line(self, *args):
-        finish_x = self.x + self.width * 0.9
-        self.finish_line_image.size = (60, self.height)  # adjust width as you like
-        self.finish_line_image.pos = (finish_x, self.y)
+        self.bind(pos=self._update_layout, size=self._update_layout)
 
-    def _update_bg(self, *args):
-        self.bg.pos = self.pos
-        self.bg.size = self.size
+        self.horses = []
+        self.bind(size=lambda *a: Clock.schedule_once(self._setup, 0))
 
-    def _draw_line(self, *args):
-        self.canvas.after.clear()
-        with self.canvas.after:
-            Color(0, 0, 0, 1)
-            Line(points=[self.width * 0.9, 0, self.width * 0.9, self.height], width=0.5)
+    def _update_layout(self, *args):
+        x, y, w, h = self.x, self.y, self.width, self.height
+        grass_height = h * 0.05
+
+        # Top grass
+        self.grass_top.pos = (x, y + h - grass_height)
+        self.grass_top.size = (w, grass_height)
+
+        # Bottom grass
+        self.grass_bottom.pos = (x, y)
+        self.grass_bottom.size = (w, grass_height)
+
+        # Track background (between the two green strips)
+        self.track_bg.pos = (x, y + grass_height)
+        self.track_bg.size = (w, h - 2 * grass_height)
+
+        # Finish line
+        finish_x = x + w * 0.9
+        self.finish_line_image.size = (60, h)
+        self.finish_line_image.pos = (finish_x, y)
 
     def _setup(self, dt=None):
         for horse in self.horses:
             self.remove_widget(horse)
         self.horses = []
+
         num_horses = 6
         tmp = HorseSprite(1)
         h = tmp.height
         empty = self.height - num_horses * h
         spacing = empty / (num_horses + 1)
         start_x = self.width * 0.1
+
         for i in range(num_horses):
             y = spacing * (i + 1) + h * i
             horse = HorseSprite(i + 1)
             horse.pos = (start_x, y)
             self.horses.append(horse)
             self.add_widget(horse)
+
 
 class HorseSprite(Widget):
     def __init__(self, number, **kwargs):
