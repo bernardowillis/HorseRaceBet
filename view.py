@@ -57,10 +57,12 @@ class RaceTrack(Widget):
         self.track_bg.pos = (x, y + grass_height)
         self.track_bg.size = (w, h - 2 * grass_height)
 
-        # Finish line
+        # Finish line (between the grass areas)
         finish_x = x + w * 0.9
-        self.finish_line_image.size = (60, h)
-        self.finish_line_image.pos = (finish_x, y)
+        track_y = y + grass_height
+        track_height = h - 2 * grass_height
+        self.finish_line_image.size = (60, track_height)
+        self.finish_line_image.pos = (finish_x, track_y)
 
     def _setup(self, dt=None):
         for horse in self.horses:
