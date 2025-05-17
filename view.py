@@ -88,20 +88,39 @@ class HorseSprite(Widget):
     def __init__(self, number, **kwargs):
         super().__init__(**kwargs)
         self.number = number
-        self.size = (50, 50)
-        with self.canvas:
-            Color(0.8, 0.3, 0.3, 1)
-            self.ellipse = Ellipse(pos=self.pos, size=self.size)
-        self.bind(pos=self._update_graphics)
-        self.label = Label(text=str(number), size_hint=(None, None), color=(0, 0, 0, 1))
+        self.size = (180, 60)  # adjust based on your image resolution
+
+        # Load the horse image
+        self.image = Image(
+            source=f'assets/images/horses/horse_{self.number}.png',
+            size=self.size,
+            allow_stretch=True,
+            keep_ratio=True
+        )
+        self.add_widget(self.image)
+
+        # Add number label on top of image
+        self.label = Label(
+            text=str(number),
+            size_hint=(None, None),
+            size=(self.width, self.height),
+            color=(1, 1, 1, 1),  # white
+            font_size='16sp',
+            bold=True
+        )
         self.add_widget(self.label)
-        self.bind(pos=self._update_label, size=self._update_label)
 
-    def _update_graphics(self, *args):
-        self.ellipse.pos = self.pos
+        # Keep position of image and label synced with the widget
+        self.bind(pos=self._update_positions, size=self._update_positions)
 
-    def _update_label(self, *args):
-        self.label.center = self.center
+    def _update_positions(self, *args):
+        self.image.pos = self.pos
+        self.image.size = self.size
+        # Shift label slightly left (e.g., 20 pixels)
+        self.label.center_x = self.center_x - 18
+        self.label.center_y = self.center_y
+
+
 
 class GameView(FloatLayout):
     def __init__(self, lang_mgr, **kwargs):
