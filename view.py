@@ -5,9 +5,13 @@ from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Color, Rectangle, Line
 from kivy.clock import Clock
 from kivy.uix.image import Image
+from kivy.core.audio import SoundLoader
+
+from kivy.core.text import LabelBase
+LabelBase.register(name="Arcade", fn_regular="assets/fonts/arcade.ttf")
 
 
 class RaceTrack(Widget):
@@ -16,12 +20,12 @@ class RaceTrack(Widget):
 
 
         with self.canvas.before:
-            Color(0.3, 0.7, 0.3, 1)
-            self.grass_top = Rectangle()
-            Color(0.3, 0.7, 0.3, 1)
-            self.grass_bottom = Rectangle()
-            Color(0.82, 0.71, 0.55, 1)
-            self.track_bg = Rectangle()
+            Color(1, 1, 1, 1)       # full opacity for all textures
+
+            # textured rectangles
+            self.grass_top    = Rectangle(source='assets/images/grass1.png')
+            self.grass_bottom = Rectangle(source='assets/images/grass2.png')
+            self.track_bg     = Rectangle(source='assets/images/racetrack.png')
 
         self.finish_line_image = Image(
             source="assets/images/finish_line_1.png",
@@ -87,8 +91,8 @@ class HorseSprite(Widget):
         self.size = (100, 100)
 
         # Single assets used by every horse
-        self.static_source = "assets/images/horses/horse.png"
-        self.animated_source = "assets/images/horses/horserun.gif"
+        self.static_source   = f'assets/images/horses/horse{self.number}.png'
+        self.animated_source = f'assets/images/horses/horserun{self.number}.gif'
         self.running = False
 
         self.image = Image(
@@ -105,7 +109,8 @@ class HorseSprite(Widget):
             size_hint=(None, None),
             size=(self.width, self.height),
             color=(1, 1, 1, 1),
-            font_size="16sp",
+            font_size="20sp",
+            font_name="Arcade", 
             bold=True,
         )
         self.add_widget(self.label)
@@ -138,46 +143,174 @@ class GameView(FloatLayout):
         super().__init__(**kwargs)
         self.lang = lang_mgr
 
+        # ── NEW: load click sound once ────────────────────────────
+        self.click_snd = SoundLoader.load("assets/sounds/click.mp3")
+        if self.click_snd:                       # optional volume tweak
+            self.click_snd.volume = 0.8
+
+        self.pop_snd = SoundLoader.load("assets/sounds/popup.mp3")
+        if self.pop_snd:                       # optional volume tweak
+            self.pop_snd.volume = 1
+        
+        self.pistol_snd = SoundLoader.load("assets/sounds/starterpistol.mp3")
+        self._pistol_event = None
+        if self.pistol_snd:                       # optional volume tweak
+            self.pistol_snd.volume = 0.8
+        # ──────────────────────────────────────────────────────────
+        # race-loop sound (plays while horses run)
+        self.gallop_snd = SoundLoader.load("assets/sounds/horsegallop.mp3")
+        self._gallop_event = None   # will hold the Clock event
+        if self.gallop_snd:
+            self.gallop_snd.loop = True          # keep repeating
+            self.gallop_snd.volume = 0.4        # tweak to taste
+
+        # win fanfare – plays only when the player's horse wins
+        self.win_snd = SoundLoader.load("assets/sounds/win.mp3")
+        if self.win_snd:
+            self.win_snd.loop = False   # single play
+            self.win_snd.volume = 0.9   # tweak to taste
+        
+        self.bg_music = SoundLoader.load("assets/sounds/music.mp3")
+        if self.bg_music:
+            self.bg_music.loop = True     # infinite loop
+            self.bg_music.volume = 0.2    # subtle under the effects
+            self.bg_music.play()          # start immediately
+        
+        self.bg_horse = SoundLoader.load("assets/sounds/horsebackground.mp3")
+        if self.bg_horse:
+            self.bg_horse.loop = True     # infinite loop
+            self.bg_horse.volume = 0.5    # subtle under the effects
+            self.bg_horse.play()          # start immediately
+
         self.track = RaceTrack(size_hint=(1, 1))
         self.add_widget(self.track)
 
         self._build_controls()
         self.result_popup = None
 
+    # ────────────────────────────────────────────────────────────
+    # HELPER: add a live border to any widget
+    # ────────────────────────────────────────────────────────────
+    def _add_border(self, widget, rgba=(0, 0, 0, 1), width=2):
+        with widget.canvas.after:
+            Color(*rgba)
+            outline = Line(
+                rectangle=(widget.x, widget.y, widget.width, widget.height),
+                width=width,
+                joint='miter'
+            )
+
+        # keep the border in sync with widget geometry
+        def _update(*_):
+            outline.rectangle = (
+                widget.x, widget.y, widget.width, widget.height
+            )
+
+        widget.bind(pos=_update, size=_update)
+
+         # ---------------------------------------------------------------
+    # Utility: draw an image that tracks the widget's size & pos
+    # ---------------------------------------------------------------
+    def _add_texture_bg(self, widget, texture_path):
+        with widget.canvas.before:
+            tex = Rectangle(source=texture_path,
+                            pos=widget.pos,
+                            size=widget.size)
+
+        def _sync(*_):
+            tex.pos  = widget.pos
+            tex.size = widget.size
+
+        widget.bind(pos=_sync, size=_sync)
+
+    # ────────────────────────────────────────────────────────────
+    # BUILD BETTING PANEL (now with borders)
+    # ────────────────────────────────────────────────────────────
     def _build_controls(self):
+        # main golden panel
         self.control_panel = BoxLayout(
-            orientation="vertical", size_hint=(1, 0.2), pos_hint={"x": 0, "y": 0}
+            orientation="vertical",
+            size_hint=(1, 0.2),
+            pos_hint={"x": 0, "y": 0},
         )
         with self.control_panel.canvas.before:
-            Color(1, 1, 1, 1)
-            self.bg_rect = Rectangle(pos=self.control_panel.pos, size=self.control_panel.size)
+            self.bg_rect = Rectangle(
+                source="assets/images/texture1.png",
+                pos=self.control_panel.pos,
+                size=self.control_panel.size
+            )
         self.control_panel.bind(
             pos=lambda *a: setattr(self.bg_rect, "pos", self.control_panel.pos),
             size=lambda *a: setattr(self.bg_rect, "size", self.control_panel.size),
         )
+        self._add_border(self.control_panel, (0, 0, 0, 1), 2)   # ← black outline
+
+        # top row
         top = BoxLayout(size_hint=(1, 0.4))
-        top.add_widget(Label(text=self.lang.get("bet_amount"), color=(0, 0, 0, 1)))
+        top.add_widget(Label(text=self.lang.get("bet_amount"), color=(0, 0, 0, 1), font_size="25sp", font_name="Arcade",))
+
         self.bet_input = TextInput(
             text="10",
             multiline=False,
             input_filter="int",
-            foreground_color=(0, 0, 0, 1),
-            background_color=(1, 1, 1, 1),
+            foreground_color=(1, 1, 1, 1),
+            background_normal="assets/images/texture3.png",
+            background_active="assets/images/texture3.png",
+            font_size="20sp",
+            font_name="Arcade",
+            halign="center",
         )
+        # after creating bet_input
+        def _recenter(_instance, _value):
+            # line_height is the pixel height of the current font
+            offset = (self.bet_input.height - self.bet_input.line_height) / 2
+            # padding: [left, top, right, bottom]
+            self.bet_input.padding = [0, offset, 0, offset]
+
+        # run once now and bind so it updates on resize / font changes
+        _recenter(None, None)
+        self.bet_input.bind(size=_recenter, font_size=_recenter)
+        
         top.add_widget(self.bet_input)
-        self.balance_label = Label(text="", color=(0, 0, 0, 1))
+        self._add_border(self.bet_input, (0, 0, 0.000, 1), 2)       # ← white outline
+
+        self.balance_label = Label(text="", color=(0, 0, 0, 1), font_size="25sp", font_name="Arcade",)
         top.add_widget(self.balance_label)
         self.control_panel.add_widget(top)
 
-        row = BoxLayout(size_hint=(1, 0.6))
+        # bottom row with 6 buttons
+        row = BoxLayout(size_hint=(1, 0.5))
         for i in range(6):
-            btn = Button(text=str(i + 1), color=(0, 0, 0, 1), background_color=(1, 1, 1, 1))
-            btn.bind(on_press=self._on_bet)
+            btn = Button(
+                text=str(i + 1),
+                color=(1, 1, 1, 1),
+                background_normal="assets/images/texture2.png",
+                background_down="assets/images/texture4.png",  # or same
+                border=(0, 0, 0, 0),        # disable 9-patch cropping
+                font_size="30sp",
+                font_name="Arcade", 
+            )
+            btn.bind(on_release=self._on_bet)
             row.add_widget(btn)
+            self._add_border(btn, (0, 0, 0.000, 1), 2)             # ← outline each button
         self.control_panel.add_widget(row)
+
         self.add_widget(self.control_panel)
 
+
     def _on_bet(self, instance):
+        # ── NEW: audible feedback ────────────────────────────────
+        if self.click_snd:
+            self.click_snd.stop()    # in case previous click is still playing
+            self.click_snd.play()
+        # ──────────────────────────────────────────────────────────
+        if self.pistol_snd:
+            if self._pistol_event:            # cancel a stray old timer
+                Clock.unschedule(self._pistol_event)
+            self._pistol_event = Clock.schedule_once(
+                lambda dt: (self.pistol_snd.stop(), self.pistol_snd.play()),
+                0.01                        # ← delay in seconds
+            )
         horse_number = int(instance.text)
         amount = int(self.bet_input.text)
         self.controller.place_bet(horse_number, amount)
@@ -186,6 +319,16 @@ class GameView(FloatLayout):
         self.balance_label.text = f"{self.lang.get('balance')}: ${balance}"
 
     def start_race_animation(self, horse_speeds, finish_x):
+        # play gallop sound
+        # schedule gallop loop to begin after 0.5 s
+        if self.gallop_snd:
+            if self._gallop_event:            # cancel a stray old timer
+                Clock.unschedule(self._gallop_event)
+            self._gallop_event = Clock.schedule_once(
+                lambda dt: (self.gallop_snd.stop(), self.gallop_snd.play()),
+                0.5                            # ← delay in seconds
+            )
+
         # flip every sprite to the GIF
         for sprite in self.track.horses:
             sprite.set_running(True)
@@ -201,9 +344,13 @@ class GameView(FloatLayout):
             sprite.x = self.track.x + horse_pos
 
     def reset_track(self):
-        # make sure anything still visible is standing again
-        for sprite in self.track.horses:
-            sprite.set_running(False)
+
+         # stop or cancel gallop loop
+        if self.gallop_snd:
+            self.gallop_snd.stop()
+        if self._gallop_event:
+            Clock.unschedule(self._gallop_event)
+            self._gallop_event = None
 
         self.track._setup()
         self.control_panel.opacity = 1
@@ -212,31 +359,71 @@ class GameView(FloatLayout):
     def show_result(self, winner, player_won, payout):
         from kivy.uix.boxlayout import BoxLayout
 
+        if self.pop_snd:
+            self.pop_snd.stop() 
+            self.pop_snd.play()
+
+        # play victory sound if you won
+        if player_won and self.win_snd:
+            self.win_snd.stop()
+            self.win_snd.play()
+
+        # ------------------------------------------------------------------
+        # 1) Build the two lines of text
+        # ------------------------------------------------------------------
         line1 = Label(
             text=f"Horse number {winner} wins!",
             font_size="22sp",
-            bold=True,
+            font_name="Arcade",
             color=(1, 1, 1, 1),
         )
 
         if player_won:
             line2 = Label(
-                text=f"You won ${payout}!", font_size="18sp", color=(0, 0.5, 0, 1)
+                text=f"You won ${payout}!",
+                font_size="18sp",
+                font_name="Arcade",
+                color=(0, 0.6, 0, 1),
             )
         else:
             line2 = Label(
-                text=f"You lost ${payout}.", font_size="18sp", color=(0.6, 0, 0, 1)
+                text=f"You lost ${payout}.",
+                font_size="18sp",
+                font_name="Arcade",
+                color=(0.8, 0, 0, 1),
             )
 
+        # textured plates behind each label
+        self._add_texture_bg(line1, "assets/images/texture4.png")
+        self._add_texture_bg(line2, "assets/images/texture4.png")
+
+        # stack them vertically
         content = BoxLayout(orientation="vertical", padding=10, spacing=10)
         content.add_widget(line1)
         content.add_widget(line2)
 
+        # optional: texture behind the whole content box
+        self._add_texture_bg(content, "assets/images/texture3.png")
+
+        # ------------------------------------------------------------------
+        # 2) Create the popup with a custom background + custom title font
+        # ------------------------------------------------------------------
         self.result_popup = Popup(
-            title="Race Result",
+            title="RACE RESULT",                       # text shown in the bar
+            title_font="assets/fonts/arcade.ttf",      # <— arcade font
+            title_size="28sp",
+            title_align="center", 
+
+            title_color=(1, 1, 1, 1),
+
             content=content,
             size_hint=(None, None),
-            size=(300, 200),
+            size=(420, 220),
+
+            background="assets/images/texture2.png",   # <— your texture here
+            border=(0, 0, 0, 0),                       # no 9-patch stretch
+            separator_height=0,                        # hide grey line
             auto_dismiss=False,
         )
         self.result_popup.open()
+
