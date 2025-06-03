@@ -143,50 +143,52 @@ class GameView(FloatLayout):
         super().__init__(**kwargs)
         self.lang = lang_mgr
 
-        # ── NEW: load click sound once ────────────────────────────
+        # ── Sounds and music (unchanged) ─────────────────────────
         self.click_snd = SoundLoader.load("assets/sounds/click.mp3")
-        if self.click_snd:                       # optional volume tweak
+        if self.click_snd:
             self.click_snd.volume = 0.8
 
         self.pop_snd = SoundLoader.load("assets/sounds/popup.mp3")
-        if self.pop_snd:                       # optional volume tweak
+        if self.pop_snd:
             self.pop_snd.volume = 1
-        
+
         self.pistol_snd = SoundLoader.load("assets/sounds/starterpistol.mp3")
         self._pistol_event = None
-        if self.pistol_snd:                       # optional volume tweak
+        if self.pistol_snd:
             self.pistol_snd.volume = 0.8
-        # ──────────────────────────────────────────────────────────
-        # race-loop sound (plays while horses run)
-        self.gallop_snd = SoundLoader.load("assets/sounds/horsegallop.mp3")
-        self._gallop_event = None   # will hold the Clock event
-        if self.gallop_snd:
-            self.gallop_snd.loop = True          # keep repeating
-            self.gallop_snd.volume = 0.4        # tweak to taste
 
-        # win fanfare – plays only when the player's horse wins
+        self.gallop_snd = SoundLoader.load("assets/sounds/horsegallop.mp3")
+        self._gallop_event = None
+        if self.gallop_snd:
+            self.gallop_snd.loop = True
+            self.gallop_snd.volume = 0.4
+
         self.win_snd = SoundLoader.load("assets/sounds/win.mp3")
         if self.win_snd:
-            self.win_snd.loop = False   # single play
-            self.win_snd.volume = 0.9   # tweak to taste
-        
+            self.win_snd.loop = False
+            self.win_snd.volume = 0.9
+
         self.bg_music = SoundLoader.load("assets/sounds/music.mp3")
         if self.bg_music:
-            self.bg_music.loop = True     # infinite loop
-            self.bg_music.volume = 0.2    # subtle under the effects
-            self.bg_music.play()          # start immediately
-        
+            self.bg_music.loop = True
+            self.bg_music.volume = 0.2
+            self.bg_music.play()
+
         self.bg_horse = SoundLoader.load("assets/sounds/horsebackground.mp3")
         if self.bg_horse:
-            self.bg_horse.loop = True     # infinite loop
-            self.bg_horse.volume = 0.5    # subtle under the effects
-            self.bg_horse.play()          # start immediately
+            self.bg_horse.loop = True
+            self.bg_horse.volume = 0.5
+            self.bg_horse.play()
 
+        # ── Race track ───────────────────────────────────────────
         self.track = RaceTrack(size_hint=(1, 1))
         self.add_widget(self.track)
 
+        # ── Build the betting + deposit panel ────────────────────
         self._build_controls()
         self.result_popup = None
+        # track deposit popup reference for dismissal
+        self._deposit_popup = None
 
     # ────────────────────────────────────────────────────────────
     # HELPER: add a live border to any widget
@@ -200,7 +202,6 @@ class GameView(FloatLayout):
                 joint='miter'
             )
 
-        # keep the border in sync with widget geometry
         def _update(*_):
             outline.rectangle = (
                 widget.x, widget.y, widget.width, widget.height
@@ -208,9 +209,9 @@ class GameView(FloatLayout):
 
         widget.bind(pos=_update, size=_update)
 
-         # ---------------------------------------------------------------
+    # ────────────────────────────────────────────────────────────
     # Utility: draw an image that tracks the widget's size & pos
-    # ---------------------------------------------------------------
+    # ────────────────────────────────────────────────────────────
     def _add_texture_bg(self, widget, texture_path):
         with widget.canvas.before:
             tex = Rectangle(source=texture_path,
@@ -218,21 +219,21 @@ class GameView(FloatLayout):
                             size=widget.size)
 
         def _sync(*_):
-            tex.pos  = widget.pos
+            tex.pos = widget.pos
             tex.size = widget.size
 
         widget.bind(pos=_sync, size=_sync)
 
     # ────────────────────────────────────────────────────────────
-    # BUILD BETTING PANEL (now with borders)
+    # BUILD BETTING + DEPOSIT PANEL (with borders)
     # ────────────────────────────────────────────────────────────
     def _build_controls(self):
-        # main golden panel
         self.control_panel = BoxLayout(
             orientation="vertical",
             size_hint=(1, 0.2),
             pos_hint={"x": 0, "y": 0},
         )
+        # background texture
         with self.control_panel.canvas.before:
             self.bg_rect = Rectangle(
                 source="assets/images/texture1.png",
@@ -243,12 +244,19 @@ class GameView(FloatLayout):
             pos=lambda *a: setattr(self.bg_rect, "pos", self.control_panel.pos),
             size=lambda *a: setattr(self.bg_rect, "size", self.control_panel.size),
         )
-        self._add_border(self.control_panel, (0, 0, 0, 1), 2)   # ← black outline
+        self._add_border(self.control_panel, (0, 0, 0, 1), 2)
 
-        # top row
+        # ── TOP ROW: Bet amount, balance, and **Deposit** button
         top = BoxLayout(size_hint=(1, 0.4))
-        top.add_widget(Label(text=self.lang.get("bet_amount"), color=(0, 0, 0, 1), font_size="25sp", font_name="Arcade",))
+        # “Bet Amount” label
+        top.add_widget(Label(
+            text=self.lang.get("bet_amount"),
+            color=(0, 0, 0, 1),
+            font_size="25sp",
+            font_name="Arcade",
+        ))
 
+        # Bet input field
         self.bet_input = TextInput(
             text="10",
             multiline=False,
@@ -260,56 +268,69 @@ class GameView(FloatLayout):
             font_name="Arcade",
             halign="center",
         )
-        # after creating bet_input
         def _recenter(_instance, _value):
-            # line_height is the pixel height of the current font
             offset = (self.bet_input.height - self.bet_input.line_height) / 2
-            # padding: [left, top, right, bottom]
             self.bet_input.padding = [0, offset, 0, offset]
-
-        # run once now and bind so it updates on resize / font changes
         _recenter(None, None)
         self.bet_input.bind(size=_recenter, font_size=_recenter)
-        
         top.add_widget(self.bet_input)
-        self._add_border(self.bet_input, (0, 0, 0.000, 1), 2)       # ← white outline
+        self._add_border(self.bet_input, (0, 0, 0, 1), 2)
 
-        self.balance_label = Label(text="", color=(0, 0, 0, 1), font_size="25sp", font_name="Arcade",)
+        # Balance display
+        self.balance_label = Label(
+            text="",
+            color=(0, 0, 0, 1),
+            font_size="25sp",
+            font_name="Arcade",
+        )
         top.add_widget(self.balance_label)
+
+        # **Deposit** button (new)
+        deposit_btn = Button(
+            text="Deposit",
+            color=(0, 0, 0, 1),
+            background_normal='',
+            background_down='',
+            background_color=(0, 0, 0, 0),  # Fully transparent
+            border=(0, 0, 0, 0),
+            font_size="24sp",
+            font_name="Arcade",
+        )
+
+        deposit_btn.bind(on_release=lambda inst: self.show_deposit_popup())
+        top.add_widget(deposit_btn)
+        self._add_border(deposit_btn, (0, 0, 0, 1), 2)
+
         self.control_panel.add_widget(top)
 
-        # bottom row with 6 buttons
+        # ── BOTTOM ROW: Horse‐selection buttons (unchanged) ────
         row = BoxLayout(size_hint=(1, 0.5))
         for i in range(6):
             btn = Button(
                 text=str(i + 1),
                 color=(1, 1, 1, 1),
                 background_normal="assets/images/texture2.png",
-                background_down="assets/images/texture4.png",  # or same
-                border=(0, 0, 0, 0),        # disable 9-patch cropping
+                background_down="assets/images/texture4.png",
+                border=(0, 0, 0, 0),
                 font_size="30sp",
-                font_name="Arcade", 
+                font_name="Arcade",
             )
             btn.bind(on_release=self._on_bet)
             row.add_widget(btn)
-            self._add_border(btn, (0, 0, 0.000, 1), 2)             # ← outline each button
+            self._add_border(btn, (0, 0, 0, 1), 2)
         self.control_panel.add_widget(row)
 
         self.add_widget(self.control_panel)
 
-
     def _on_bet(self, instance):
-        # ── NEW: audible feedback ────────────────────────────────
         if self.click_snd:
-            self.click_snd.stop()    # in case previous click is still playing
+            self.click_snd.stop()
             self.click_snd.play()
-        # ──────────────────────────────────────────────────────────
         if self.pistol_snd:
-            if self._pistol_event:            # cancel a stray old timer
+            if self._pistol_event:
                 Clock.unschedule(self._pistol_event)
             self._pistol_event = Clock.schedule_once(
-                lambda dt: (self.pistol_snd.stop(), self.pistol_snd.play()),
-                0.01                        # ← delay in seconds
+                lambda dt: (self.pistol_snd.stop(), self.pistol_snd.play()), 0.01
             )
         horse_number = int(instance.text)
         amount = int(self.bet_input.text)
@@ -426,4 +447,175 @@ class GameView(FloatLayout):
             auto_dismiss=False,
         )
         self.result_popup.open()
+
+    # ────────────────────────────────────────────────────────────
+    # UPDATED: show_deposit_popup with larger field & buttons
+    # ────────────────────────────────────────────────────────────
+    def show_deposit_popup(self):
+        # 1) Build the popup content
+        content = BoxLayout(orientation="vertical", padding=15, spacing=15)
+
+        # Instruction label (fits on one line now)
+        content.add_widget(Label(
+            text="ENTER DEPOSIT AMOUNT:",
+            color=(0, 0, 0, 1),
+            font_size="20sp",
+            font_name="Arcade",
+            size_hint=(1, 0.2),
+            halign="center",
+            valign="middle"
+        ))
+
+        # ─────────────────────────────────────────────────────────
+        # TextInput for deposit: “size_hint_y=None” + explicit height
+        # so the text area can expand instead of clipping at a minimum.
+        #
+        # I chose height=60px (roughly 22sp × 2.5) so your 22sp font
+        # has plenty of vertical room. Adjust as needed!
+        # ─────────────────────────────────────────────────────────
+        self.deposit_input = TextInput(
+            text="0",
+            multiline=False,
+            input_filter="int",
+            foreground_color=(1, 1, 1, 1),
+            background_normal="assets/images/texture3.png",
+            background_active="assets/images/texture3.png",
+            font_size="16sp",
+            font_name="Arcade",
+            halign="center",
+
+            size_hint=(1, None),
+            height=70,      # <-- explicit height in pixels
+            padding=[10, 0, 10, 0],  # left/right padding; top/bottom will be adjusted below
+        )
+
+        # Center the text vertically by computing offset from line_height ↔ height
+        def _recenter_deposit(_inst, _val):
+            # line_height is roughly “font_size + some spacing”
+            offset = (self.deposit_input.height - self.deposit_input.line_height) / 2
+            if offset < 0:
+                offset = 0
+            # padding format: [padding_left, padding_top, padding_right, padding_bottom]
+            self.deposit_input.padding = [10, offset, 10, offset]
+
+        # Call once immediately, then whenever size/font_size changes
+        _recenter_deposit(None, None)
+        self.deposit_input.bind(size=_recenter_deposit, font_size=_recenter_deposit)
+
+        content.add_widget(self.deposit_input)
+
+        # ─────────────────────────────────────────────────────────
+        # Button row: now 25% of the popup’s height
+        # ─────────────────────────────────────────────────────────
+        btn_row = BoxLayout(size_hint=(1, 0.25), spacing=20)
+
+        add_btn = Button(
+            text="ADD",
+            color=(1, 1, 1, 1),
+            background_normal="assets/images/texture2.png",
+            background_down="assets/images/texture4.png",
+            font_size="20sp",
+            font_name="Arcade",
+            size_hint=(0.45, 1),
+        )
+        cancel_btn = Button(
+            text="CANCEL",
+            color=(1, 1, 1, 1),
+            background_normal="assets/images/texture2.png",
+            background_down="assets/images/texture4.png",
+            font_size="20sp",
+            font_name="Arcade",
+            size_hint=(0.45, 1),
+        )
+
+        btn_row.add_widget(add_btn)
+        btn_row.add_widget(cancel_btn)
+        content.add_widget(btn_row)
+
+        # ─────────────────────────────────────────────────────────
+        # Create the Popup itself (wider/taller so content fits nicely)
+        # ─────────────────────────────────────────────────────────
+        self._deposit_popup = Popup(
+            title="DEPOSIT FUNDS",
+            title_font="assets/fonts/arcade.ttf",
+            title_size="26sp",
+            title_align="center",
+            title_color=(1, 1, 1, 1),
+
+            content=content,
+            size_hint=(None, None),
+            size=(550, 350),          # ↑ slightly larger, so label + input + buttons all fit
+            background="assets/images/texture5.png",
+            border=(0, 0, 0, 0),
+            separator_height=0,
+            auto_dismiss=False,
+        )
+
+        add_btn.bind(on_release=lambda inst: self._on_deposit_add())
+        cancel_btn.bind(on_release=lambda inst: self._on_deposit_cancel())
+
+        self._deposit_popup.open()
+
+
+    def _on_deposit_add(self):
+        try:
+            amount = int(self.deposit_input.text)
+        except ValueError:
+            self.show_deposit_error("Enter a valid number")
+            return
+
+        # call controller; if it fails, view.show_deposit_error will be invoked
+        self.controller.deposit_money(amount)
+
+    def _on_deposit_cancel(self):
+        if self._deposit_popup:
+            self._deposit_popup.dismiss()
+            self._deposit_popup = None
+
+    def dismiss_deposit_popup(self):
+        if self._deposit_popup:
+            self._deposit_popup.dismiss()
+            self._deposit_popup = None
+
+    def show_deposit_error(self, msg):
+        # A simple error popup that closes when “OK” is pressed
+        error_lbl = Label(
+            text=msg,
+            font_size="18sp",
+            color=(1, 0, 0, 1),
+            font_name="Arcade",
+            size_hint=(1, 0.6),
+            halign="center",
+            valign="middle"
+        )
+        ok_btn = Button(
+            text="OK",
+            size_hint=(1, 0.4),
+            color=(1, 1, 1, 1),
+            background_normal="assets/images/texture2.png",
+            background_down="assets/images/texture4.png",
+            font_size="18sp",
+            font_name="Arcade",
+        )
+        content = BoxLayout(orientation="vertical", padding=10, spacing=10)
+        content.add_widget(error_lbl)
+        content.add_widget(ok_btn)
+
+        popup = Popup(
+            title="Error",
+            title_font="assets/fonts/arcade.ttf",
+            title_size="22sp",
+            title_align="center",
+            title_color=(1, 0, 0, 1),
+            content=content,
+            size_hint=(None, None),
+            size=(320, 180),
+            background="assets/images/texture2.png",
+            border=(0, 0, 0, 0),
+            separator_height=0,
+            auto_dismiss=False,
+        )
+        ok_btn.bind(on_release=lambda inst: popup.dismiss())
+        popup.open()
+
 

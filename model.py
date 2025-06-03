@@ -100,3 +100,16 @@ class GameState:
         for horse in self.horses:
             horse.position = 0
             horse.speed = 0
+
+    # ───────────────────────────────────────────────────────
+    # NEW: deposit money (with a maximum limit)
+    # ───────────────────────────────────────────────────────
+    def deposit_money(self, amount):
+        MAX_DEPOSIT = 1000
+        if amount <= 0:
+            raise ValueError("Deposit must be positive")
+        if amount > MAX_DEPOSIT:
+            raise ValueError(f"Cannot deposit more than ${MAX_DEPOSIT}")
+        # record undo of current balance
+        self.undo_manager.record(('balance', self.balance))
+        self.balance += amount

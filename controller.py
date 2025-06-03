@@ -9,6 +9,7 @@ class GameController:
         self.model = model
         self.view = view
         self.view.controller = self
+        # show initial balance
         self.view.update_balance(self.model.balance)
 
     def place_bet(self, horse_number, amount):
@@ -86,4 +87,19 @@ class GameController:
         # Reset game state and visuals
         self.model.reset()
         self.view.reset_track()
+
+    # ───────────────────────────────────────────────────────
+    # NEW: Deposit Money
+    # ───────────────────────────────────────────────────────
+    def deposit_money(self, amount):
+        try:
+            self.model.deposit_money(amount)
+        except ValueError as e:
+            # inform view of the error (e.g. show a warning popup)
+            self.view.show_deposit_error(str(e))
+            return
+        # update balance in view
+        self.view.update_balance(self.model.balance)
+        # optionally close the deposit popup (view will handle this)
+        self.view.dismiss_deposit_popup()
 

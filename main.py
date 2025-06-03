@@ -1,4 +1,7 @@
 ### main.py
+from kivy.config import Config
+Config.set('graphics', 'width', '1000')
+Config.set('graphics', 'height', '600')
 from kivy.app import App
 from language_manager import LanguageManager
 from model import GameState, UndoRedoManager
