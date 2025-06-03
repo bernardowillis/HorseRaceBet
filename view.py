@@ -432,7 +432,7 @@ class GameView(FloatLayout):
             text=f"Horse number {winner} wins!",
             font_size="22sp",
             font_name="Arcade",
-            color=(1, 1, 1, 1),
+            color=(0, 0, 0, 1),
         )
 
         if player_won:
@@ -451,8 +451,8 @@ class GameView(FloatLayout):
             )
 
         # textured plates behind each label
-        self._add_texture_bg(line1, "assets/images/texture4.png")
-        self._add_texture_bg(line2, "assets/images/texture4.png")
+        # self._add_texture_bg(line1, "assets/images/texture4.png")
+        # self._add_texture_bg(line2, "assets/images/texture4.png")
 
         # stack them vertically
         content = BoxLayout(orientation="vertical", padding=10, spacing=10)
@@ -460,7 +460,7 @@ class GameView(FloatLayout):
         content.add_widget(line2)
 
         # optional: texture behind the whole content box
-        self._add_texture_bg(content, "assets/images/texture3.png")
+        # self._add_texture_bg(content, "assets/images/texture3.png")
 
         # ------------------------------------------------------------------
         # 2) Create the popup with a custom background + custom title font
@@ -475,9 +475,9 @@ class GameView(FloatLayout):
 
             content=content,
             size_hint=(None, None),
-            size=(420, 220),
+            size=(580, 240),
 
-            background="assets/images/texture2.png",   # <— your texture here
+            background="assets/images/texture5.png",   # <— your texture here
             border=(0, 0, 0, 0),                       # no 9-patch stretch
             separator_height=0,                        # hide grey line
             auto_dismiss=False,
