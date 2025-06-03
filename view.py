@@ -9,6 +9,8 @@ from kivy.graphics import Color, Rectangle, Line
 from kivy.clock import Clock
 from kivy.uix.image import Image
 from kivy.core.audio import SoundLoader
+from kivy.core.window import Window
+
 
 from kivy.core.text import LabelBase
 LabelBase.register(name="Arcade", fn_regular="assets/fonts/arcade.ttf")
@@ -189,6 +191,19 @@ class GameView(FloatLayout):
         self.result_popup = None
         # track deposit popup reference for dismissal
         self._deposit_popup = None
+
+        # Persistent label shown below deposit popup for quick error messages
+        self.deposit_error_label = Label(
+            text="",
+            color=(1, 0, 0, 1),
+            font_size="18sp",
+            font_name="Arcade",
+            size_hint=(None, None),
+            size=(500, 30),
+            opacity=0,
+            halign="center",
+            valign="middle",
+        )
 
     # ────────────────────────────────────────────────────────────
     # HELPER: add a live border to any widget
@@ -507,7 +522,7 @@ class GameView(FloatLayout):
         # ─────────────────────────────────────────────────────────
         # Button row: now 25% of the popup’s height
         # ─────────────────────────────────────────────────────────
-        btn_row = BoxLayout(size_hint=(1, 0.25), spacing=20)
+        self._deposit_button_row = BoxLayout(size_hint=(1, 0.3), spacing=20)
 
         add_btn = Button(
             text="ADD",
@@ -528,9 +543,9 @@ class GameView(FloatLayout):
             size_hint=(0.45, 1),
         )
 
-        btn_row.add_widget(add_btn)
-        btn_row.add_widget(cancel_btn)
-        content.add_widget(btn_row)
+        self._deposit_button_row.add_widget(add_btn)
+        self._deposit_button_row.add_widget(cancel_btn)
+        content.add_widget(self._deposit_button_row)
 
         # ─────────────────────────────────────────────────────────
         # Create the Popup itself (wider/taller so content fits nicely)
@@ -577,45 +592,37 @@ class GameView(FloatLayout):
             self._deposit_popup.dismiss()
             self._deposit_popup = None
 
-    def show_deposit_error(self, msg):
-        # A simple error popup that closes when “OK” is pressed
-        error_lbl = Label(
-            text=msg,
-            font_size="18sp",
-            color=(1, 0, 0, 1),
-            font_name="Arcade",
-            size_hint=(1, 0.6),
-            halign="center",
-            valign="middle"
-        )
-        ok_btn = Button(
-            text="OK",
-            size_hint=(1, 0.4),
-            color=(1, 1, 1, 1),
-            background_normal="assets/images/texture2.png",
-            background_down="assets/images/texture4.png",
-            font_size="18sp",
-            font_name="Arcade",
-        )
-        content = BoxLayout(orientation="vertical", padding=10, spacing=10)
-        content.add_widget(error_lbl)
-        content.add_widget(ok_btn)
+    from kivy.clock import Clock
 
-        popup = Popup(
-            title="Error",
-            title_font="assets/fonts/arcade.ttf",
-            title_size="22sp",
-            title_align="center",
-            title_color=(1, 0, 0, 1),
-            content=content,
-            size_hint=(None, None),
-            size=(320, 180),
-            background="assets/images/texture2.png",
-            border=(0, 0, 0, 0),
-            separator_height=0,
-            auto_dismiss=False,
-        )
-        ok_btn.bind(on_release=lambda inst: popup.dismiss())
-        popup.open()
+    def show_deposit_error(self, msg):
+        # If it hasn’t been added yet, stick it on Window now:
+        if not hasattr(self, "_error_added"):
+            Window.add_widget(self.deposit_error_label)
+            self._error_added = True
+
+        # Update the text / make it visible
+        self.deposit_error_label.text = msg
+        self.deposit_error_label.opacity = 1
+
+        # Place it just below the deposit-popup in window coords:
+        if self._deposit_popup:
+            px, py = self._deposit_popup.pos
+            pw, ph = self._deposit_popup.size
+            lw, lh = self.deposit_error_label.size
+            # 35 pixels below popup; adjust if you need more or less
+            self.deposit_error_label.pos = (
+                px + (pw - lw) / 2,
+                py - (lh + 15)
+            )
+
+        # Cancel any old timer and start hiding again after 2 seconds
+        if hasattr(self, "_deposit_error_timer") and self._deposit_error_timer:
+            Clock.unschedule(self._deposit_error_timer)
+
+        self._deposit_error_timer = Clock.schedule_once(self._hide_deposit_error, 2)
+
+    def _hide_deposit_error(self, dt):
+        self.deposit_error_label.opacity = 0
+        self.deposit_error_label.text = ""
 
 

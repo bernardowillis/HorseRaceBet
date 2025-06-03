@@ -107,7 +107,7 @@ class GameState:
     def deposit_money(self, amount):
         MAX_DEPOSIT = 1000
         if amount <= 0:
-            raise ValueError("Deposit must be positive")
+            raise ValueError("Enter a valid amount")
         if amount > MAX_DEPOSIT:
             raise ValueError(f"Cannot deposit more than ${MAX_DEPOSIT}")
         # record undo of current balance
