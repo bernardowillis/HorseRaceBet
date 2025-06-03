@@ -56,8 +56,10 @@ class GameState:
         self.undo_manager = undo_manager
 
     def place_bet(self, horse_number, amount):
-        if amount <= 0 or amount > self.balance:
-            raise ValueError("Invalid bet amount")
+        if amount <= 0:
+            raise ValueError("Enter a valid amount")
+        if amount > self.balance:
+            raise ValueError("Not enough money in balance")
         self.bet = Bet(horse_number, amount)
         self.undo_manager.record(('bet', self.bet))
 

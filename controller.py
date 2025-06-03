@@ -16,8 +16,9 @@ class GameController:
         try:
             self.model.place_bet(horse_number, amount)
         except ValueError as e:
-            print(e)
-            return
+            # Show “Not enough money in balance” under the panel
+            self.view.show_bet_error(str(e))
+            raise
 
         # Capture current horse widget x positions as starting positions
         for horse_widget in self.view.track.horses:
@@ -36,20 +37,6 @@ class GameController:
             None,
             finish_x=self.view.track.width * 0.9
         )
-
-    # def update_speeds_and_positions(self):
-    #     """
-    #     Update dynamic speeds and advance horse positions.
-    #     Returns True if race finished, else False.
-    #     """
-    #     self.model.update_speeds()
-    #     finish_x = self.view.track.width * 0.9
-    #     for horse in self.model.horses:
-    #         horse.position += horse.speed
-    #         if horse.position >= finish_x and self.model.winner is None:
-    #             self.model.winner = horse.number
-    #             return True
-    #     return False
 
     def update_speeds_and_positions(self):
         self.model.update_speeds()

@@ -192,6 +192,22 @@ class GameView(FloatLayout):
         # track deposit popup reference for dismissal
         self._deposit_popup = None
 
+        # ── NEW: “Not enough money” label (hidden by default)
+        self.bet_error_label = Label(
+            text = "",
+            color = (1, 0, 0, 1),
+            font_size = "18sp",
+            font_name = "Arcade",
+            size_hint = (None, None),
+            size = (400, 30),
+            opacity = 0,
+            halign = "center",
+            valign = "middle",
+            )
+        # We do NOT add it to `self` here; we’ll attach it to Window when needed.
+        self._bet_error_added = False
+        self._bet_error_timer = None
+
         # Persistent label shown below deposit popup for quick error messages
         self.deposit_error_label = Label(
             text="",
@@ -349,7 +365,12 @@ class GameView(FloatLayout):
             )
         horse_number = int(instance.text)
         amount = int(self.bet_input.text)
-        self.controller.place_bet(horse_number, amount)
+        try:
+            self.controller.place_bet(horse_number, amount)
+        except Exception:
+            # If controller raises ValueError for “not enough balance”,
+            # it should call view.show_bet_error() there. We simply pass here.
+            pass
 
     def update_balance(self, balance):
         self.balance_label.text = f"{self.lang.get('balance')}: ${balance}"
@@ -462,6 +483,41 @@ class GameView(FloatLayout):
             auto_dismiss=False,
         )
         self.result_popup.open()
+
+    # ────────────────────────────────────────────────────────────
+    # NEW: show betting‐error (“Not enough money in balance”)
+    # ────────────────────────────────────────────────────────────
+
+    def show_bet_error(self, msg):
+    # 1) Add the label to Window (only once)
+        if not self._bet_error_added:
+            Window.add_widget(self.bet_error_label)
+            self._bet_error_added = True
+
+        # 2) Update text + make it visible
+        self.bet_error_label.text = msg
+        self.bet_error_label.opacity = 1
+
+        # 3) Position it just above the betting panel:
+        cp_x, cp_y = self.control_panel.pos
+        cp_w, cp_h = self.control_panel.size
+        lw, lh = self.bet_error_label.size
+
+        # Put it 5 px above the control panel
+        self.bet_error_label.pos = (
+            cp_x + (cp_w - lw) / 2,
+            cp_y + cp_h + 15
+        )
+
+        # 4) Schedule it to hide after 2 seconds
+
+        if self._bet_error_timer:
+            Clock.unschedule(self._bet_error_timer)
+        self._bet_error_timer = Clock.schedule_once(self._hide_bet_error, 2)
+
+    def _hide_bet_error(self, dt):
+        self.bet_error_label.opacity = 0
+        self.bet_error_label.text = ""
 
     # ────────────────────────────────────────────────────────────
     # UPDATED: show_deposit_popup with larger field & buttons
