@@ -309,8 +309,8 @@ class GameView(FloatLayout):
             btn = Button(
                 text=str(i + 1),
                 color=(1, 1, 1, 1),
-                background_normal="assets/images/texture2.png",
-                background_down="assets/images/texture4.png",
+                background_normal="assets/images/texture6.png",
+                background_down="assets/images/texture8.png",
                 border=(0, 0, 0, 0),
                 font_size="30sp",
                 font_name="Arcade",
