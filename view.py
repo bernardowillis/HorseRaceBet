@@ -1,5 +1,3 @@
-# view.py  –  full version, June 2025
-
 from kivy.uix.widget      import Widget
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.boxlayout   import BoxLayout
@@ -45,43 +43,41 @@ class RaceTrack(Widget):
         self.horses = []
         self.bind(size=lambda *_: Clock.schedule_once(self._setup, 0))
 
-    # ---- layout of background strips and finish line ---------- #
-    def _update_layout(self, *a):
+    def _update_layout(self, *args):
         x, y, w, h = self.x, self.y, self.width, self.height
-        grass_h   = h * 0.05
-        bottom_h  = h * 0.20
+        grass_height  = h * 0.05
+        bottom_height = h * 0.20
 
-        self.grass_top.pos  = (x, y + h - grass_h)
-        self.grass_top.size = (w, grass_h)
+        self.grass_top.pos  = (x, y + h - grass_height)
+        self.grass_top.size = (w, grass_height)
 
         self.grass_bottom.pos  = (x, y)
-        self.grass_bottom.size = (w, bottom_h)
+        self.grass_bottom.size = (w, bottom_height)
 
-        self.track_bg.pos  = (x, y + bottom_h)
-        self.track_bg.size = (w, h - bottom_h - grass_h)
+        self.track_bg.pos  = (x, y + bottom_height)
+        self.track_bg.size = (w, h - bottom_height - grass_height)
 
         finish_x   = x + w * 0.9
-        track_y    = y + bottom_h
-        track_h    = h - bottom_h - grass_h
+        track_y    = y + bottom_height
+        track_h    = h - bottom_height - grass_height
         self.finish_line_image.size = (60, track_h)
         self.finish_line_image.pos  = (finish_x, track_y)
 
-    # ---- place 6 horses above the betting panel --------------- #
-    def _setup(self, _dt=None):
+    def _setup(self, dt=None):
         for h in self.horses:
             self.remove_widget(h)
         self.horses = []
 
-        num        = 6
-        tmp        = HorseSprite(1)
-        horse_h    = tmp.height
-        margin     = self.height * 0.22
-        visible_h  = self.height - margin
-        spacing    = (visible_h - num * horse_h) / (num + 1)
-        start_x    = self.width * 0.1
+        num_horses    = 6
+        tmp           = HorseSprite(1)
+        horse_h       = tmp.height
+        bottom_margin = self.height * 0.22
+        visible_h     = self.height - bottom_margin
+        spacing       = (visible_h - num_horses * horse_h) / (num_horses + 1)
+        start_x       = self.width * 0.1
 
-        for i in range(num):
-            y = margin + spacing * (i + 1) + horse_h * i
+        for i in range(num_horses):
+            y = bottom_margin + spacing * (i + 1) + horse_h * i
             sprite = HorseSprite(i + 1)
             sprite.pos = (start_x, y)
             self.horses.append(sprite)
@@ -98,25 +94,29 @@ class HorseSprite(Widget):
         self.animated_source = f"assets/images/horses/horserun{number}.gif"
         self.running         = False
 
-        self.image = Image(source=self.static_source,
-                           size=self.size,
-                           allow_stretch=True,
-                           keep_ratio=True)
+        self.image = Image(
+            source=self.static_source,
+            size=self.size,
+            allow_stretch=True,
+            keep_ratio=True
+        )
         self.image.anim_delay = -1
         self.add_widget(self.image)
 
-        self.label = Label(text=str(number),
-                           size_hint=(None, None),
-                           size=(self.width, self.height),
-                           color=(1, 1, 1, 1),
-                           font_size="20sp",
-                           font_name="Arcade",
-                           bold=True)
+        self.label = Label(
+            text=str(number),
+            size_hint=(None, None),
+            size=(self.width, self.height),
+            color=(1, 1, 1, 1),
+            font_size="20sp",
+            font_name="Arcade",
+            bold=True
+        )
         self.add_widget(self.label)
 
         self.bind(pos=self._sync, size=self._sync)
 
-    def _sync(self, *a):
+    def _sync(self, *args):
         self.image.pos = self.pos
         self.image.size = self.size
         self.label.center_x = self.center_x - 18
@@ -126,8 +126,12 @@ class HorseSprite(Widget):
         if running == self.running:
             return
         self.running = running
-        self.image.source     = self.animated_source if running else self.static_source
-        self.image.anim_delay = 0.05 if running else -1
+        if running:
+            self.image.source     = self.animated_source
+            self.image.anim_delay = 0.05
+        else:
+            self.image.source     = self.static_source
+            self.image.anim_delay = -1
         self.image.reload()
 
 
@@ -147,7 +151,7 @@ class GameView(FloatLayout):
             if snd:
                 snd.loop = loop
                 snd.volume = vol
-                snd._orig_vol = vol           # remember default
+                snd._orig_vol = vol
             return snd
 
         # UI / race sounds
@@ -193,16 +197,47 @@ class GameView(FloatLayout):
         self._deposit_popup       = None
 
         self.bet_error_label = Label(
-            text="", color=(1, 0, 0, 1), font_size="18sp", font_name="Arcade",
-            size_hint=(None, None), size=(400, 30), opacity=0,
-            halign="center", valign="middle")
+            text="",
+            color=(1, 0, 0, 1),
+            font_size="18sp",
+            font_name="Arcade",
+            size_hint=(None, None),
+            size=(400, 30),
+            opacity=0,
+            halign="center",
+            valign="middle"
+        )
         self._bet_error_added = False
         self._bet_error_timer = None
 
         self.deposit_error_label = Label(
-            text="", color=(1, 0, 0, 1), font_size="18sp", font_name="Arcade",
-            size_hint=(None, None), size=(500, 30), opacity=0,
-            halign="center", valign="middle")
+            text="",
+            color=(1, 0, 0, 1),
+            font_size="18sp",
+            font_name="Arcade",
+            size_hint=(None, None),
+            size=(500, 30),
+            opacity=0,
+            halign="center",
+            valign="middle"
+        )
+
+        # ────────────────────────────────────────────────────────
+        # “Leading horse” label (hidden until race starts)
+        # ────────────────────────────────────────────────────────
+        self.leading_label = Label(
+            text="",
+            color=(1, 1, 0, 1),
+            font_size="20sp",
+            font_name="Arcade",
+            size_hint=(0.5, None),
+            height=30,
+            opacity=0,
+            halign="center",
+            valign="middle",
+            pos_hint={"center_x": 0.5, "y": 0.08}
+        )
+        self.add_widget(self.leading_label)
 
     # ──────────────────────────────────────────────────────────
     #  Generic drawing helpers
@@ -210,8 +245,11 @@ class GameView(FloatLayout):
     def _add_border(self, widget, rgba=(0, 0, 0, 1), width=2):
         with widget.canvas.after:
             Color(*rgba)
-            ln = Line(rectangle=(widget.x, widget.y, widget.width, widget.height),
-                      width=width, joint="miter")
+            ln = Line(
+                rectangle=(widget.x, widget.y, widget.width, widget.height),
+                width=width,
+                joint="miter"
+            )
         widget.bind(pos=lambda *_: self._sync_line(ln, widget),
                     size=lambda *_: self._sync_line(ln, widget))
 
@@ -234,15 +272,14 @@ class GameView(FloatLayout):
     # ──────────────────────────────────────────────────────────
     def _build_settings_button(self):
         gear = Button(
-            text="",                                   # ← NO text
+            text="",
             size_hint=(None, None), size=(40, 40),
             pos_hint={"right": .99, "top": .99},
             background_normal="assets/images/settings.png",
             background_down="assets/images/settings2.png",
-            border=(0, 0, 0, 0),                      # disable 9-patch cropping
-            background_color=(1, 1, 1, 1),            # keep alpha of texture
+            border=(0, 0, 0, 0),
+            background_color=(1, 1, 1, 1),
         )
-        # remove the border line you added earlier
         gear.bind(on_release=lambda *_: self._show_settings_popup())
         self.add_widget(gear)
 
@@ -256,37 +293,48 @@ class GameView(FloatLayout):
     def _toggle_sounds(self, btn):
         self.sounds_muted = not self.sounds_muted
         btn.text = "UNMUTE SOUNDS" if self.sounds_muted else "MUTE SOUNDS"
-        for snd in (self.click_snd, self.pop_snd,
-                    self.pistol_snd, self.win_snd):
+        for snd in (self.click_snd, self.pop_snd, self.pistol_snd, self.win_snd):
             if snd:
                 snd.volume = 0 if self.sounds_muted else snd._orig_vol
 
     def _show_settings_popup(self):
         if self.pop_snd and not self.sounds_muted:
-            self.pop_snd.stop(); self.pop_snd.play()
+            self.pop_snd.stop()
+            self.pop_snd.play()
 
         root = FloatLayout()
 
-        close_btn = Button(text="X", font_size="22sp", font_name="Arcade",
-                           size_hint=(None, None), size=(50, 50),
-                           background_normal="assets/images/texture2.png",
-                           background_down="assets/images/texture4.png",
-                           border=(0, 0, 0, 0),
-                           pos_hint={"right": 1, "top": 1})
-        music_btn = Button(text="MUTE MUSIC" if not self.music_muted else "UNMUTE MUSIC",
-                           font_size="22sp", font_name="Arcade",
-                           size_hint=(0.8, 0.25),
-                           pos_hint={"center_x": 0.5, "center_y": 0.6},
-                           background_normal="assets/images/texture2.png",
-                           background_down="assets/images/texture4.png",
-                           border=(0, 0, 0, 0))
-        sounds_btn = Button(text="MUTE SOUNDS" if not self.sounds_muted else "UNMUTE SOUNDS",
-                            font_size="22sp", font_name="Arcade",
-                            size_hint=(0.8, 0.25),
-                            pos_hint={"center_x": 0.5, "center_y": 0.3},
-                            background_normal="assets/images/texture2.png",
-                            background_down="assets/images/texture4.png",
-                            border=(0, 0, 0, 0))
+        close_btn = Button(
+            text="X",
+            font_size="22sp",
+            font_name="Arcade",
+            size_hint=(None, None),
+            size=(50, 50),
+            background_normal="assets/images/texture2.png",
+            background_down="assets/images/texture4.png",
+            border=(0, 0, 0, 0),
+            pos_hint={"right": 1, "top": 1}
+        )
+        music_btn = Button(
+            text="MUTE MUSIC" if not self.music_muted else "UNMUTE MUSIC",
+            font_size="22sp",
+            font_name="Arcade",
+            size_hint=(0.8, 0.25),
+            pos_hint={"center_x": 0.5, "center_y": 0.6},
+            background_normal="assets/images/texture2.png",
+            background_down="assets/images/texture4.png",
+            border=(0, 0, 0, 0)
+        )
+        sounds_btn = Button(
+            text="MUTE SOUNDS" if not self.sounds_muted else "UNMUTE SOUNDS",
+            font_size="22sp",
+            font_name="Arcade",
+            size_hint=(0.8, 0.25),
+            pos_hint={"center_x": 0.5, "center_y": 0.3},
+            background_normal="assets/images/texture2.png",
+            background_down="assets/images/texture4.png",
+            border=(0, 0, 0, 0)
+        )
 
         for b in (close_btn, music_btn, sounds_btn):
             self._add_border(b, (0, 0, 0, 1), 2)
@@ -316,37 +364,45 @@ class GameView(FloatLayout):
     #  Betting / Deposit panel
     # ──────────────────────────────────────────────────────────
     def _build_controls(self):
-        self.control_panel = BoxLayout(orientation="vertical",
-                                       size_hint=(1, 0.2),
-                                       pos_hint={"x": 0, "y": 0})
+        self.control_panel = BoxLayout(
+            orientation="vertical",
+            size_hint=(1, 0.2),
+            pos_hint={"x": 0, "y": 0}
+        )
         with self.control_panel.canvas.before:
-            self.bg_rect = Rectangle(source="assets/images/texture1.png",
-                                     pos=self.control_panel.pos,
-                                     size=self.control_panel.size)
+            self.bg_rect = Rectangle(
+                source="assets/images/texture1.png",
+                pos=self.control_panel.pos,
+                size=self.control_panel.size
+            )
         self.control_panel.bind(
-            pos=lambda *_: self._sync_rect(self.bg_rect, self.control_panel),
-            size=lambda *_: self._sync_rect(self.bg_rect, self.control_panel),
+            pos=lambda *a: setattr(self.bg_rect, "pos", self.control_panel.pos),
+            size=lambda *a: setattr(self.bg_rect, "size", self.control_panel.size),
         )
         self._add_border(self.control_panel, (0, 0, 0, 1), 2)
 
         # ---- top row --------------------------------------------------- #
         top = BoxLayout(size_hint=(1, 0.4))
 
-        top.add_widget(Label(text=self.lang.get("bet_amount"),
-                             color=(0, 0, 0, 1),
-                             font_size="25sp",
-                             font_name="Arcade"))
+        top.add_widget(Label(
+            text=self.lang.get("bet_amount"),
+            color=(0, 0, 0, 1),
+            font_size="25sp",
+            font_name="Arcade"
+        ))
 
-        self.bet_input = TextInput(text="10",
-                                   multiline=False,
-                                   input_filter="int",
-                                   foreground_color=(1, 1, 1, 1),
-                                   background_normal="assets/images/texture3.png",
-                                   background_active="assets/images/texture3.png",
-                                   font_size="20sp",
-                                   font_name="Arcade",
-                                   halign="center")
-        def _recenter(_i,_v):
+        self.bet_input = TextInput(
+            text="10",
+            multiline=False,
+            input_filter="int",
+            foreground_color=(1, 1, 1, 1),
+            background_normal="assets/images/texture3.png",
+            background_active="assets/images/texture3.png",
+            font_size="20sp",
+            font_name="Arcade",
+            halign="center"
+        )
+        def _recenter(_instance, _value):
             off = (self.bet_input.height - self.bet_input.line_height) / 2
             self.bet_input.padding = [0, max(0, off), 0, max(0, off)]
         _recenter(None, None)
@@ -354,35 +410,42 @@ class GameView(FloatLayout):
         top.add_widget(self.bet_input)
         self._add_border(self.bet_input, (0, 0, 0, 1), 2)
 
-        self.balance_label = Label(text="",
-                                   color=(0, 0, 0, 1),
-                                   font_size="25sp",
-                                   font_name="Arcade")
+        self.balance_label = Label(
+            text="",
+            color=(0, 0, 0, 1),
+            font_size="25sp",
+            font_name="Arcade"
+        )
         top.add_widget(self.balance_label)
 
-        deposit_btn = Button(text="Deposit",
-                             color=(0, 0, 0, 1),
-                             background_normal="", background_down="",
-                             background_color=(0, 0, 0, 0),
-                             border=(0, 0, 0, 0),
-                             font_size="24sp",
-                             font_name="Arcade")
+        deposit_btn = Button(
+            text="Deposit",
+            color=(0, 0, 0, 1),
+            background_normal="",
+            background_down="",
+            background_color=(0, 0, 0, 0),
+            border=(0, 0, 0, 0),
+            font_size="24sp",
+            font_name="Arcade"
+        )
         deposit_btn.bind(on_release=lambda *_: self.show_deposit_popup())
         top.add_widget(deposit_btn)
         self._add_border(deposit_btn, (0, 0, 0, 1), 2)
 
         self.control_panel.add_widget(top)
 
-        # ---- bottom row: six horse buttons ------------------------------ #
+        # ---- bottom row ------------------------------------------------ #
         row = BoxLayout(size_hint=(1, 0.5))
         for i in range(6):
-            btn = Button(text=str(i + 1),
-                         color=(1, 1, 1, 1),
-                         background_normal="assets/images/texture6.png",
-                         background_down="assets/images/texture8.png",
-                         border=(0, 0, 0, 0),
-                         font_size="30sp",
-                         font_name="Arcade")
+            btn = Button(
+                text=str(i + 1),
+                color=(1, 1, 1, 1),
+                background_normal="assets/images/texture6.png",
+                background_down="assets/images/texture8.png",
+                border=(0, 0, 0, 0),
+                font_size="30sp",
+                font_name="Arcade"
+            )
             btn.bind(on_release=self._on_bet)
             row.add_widget(btn)
             self._add_border(btn, (0, 0, 0, 1), 2)
@@ -395,20 +458,22 @@ class GameView(FloatLayout):
     # ──────────────────────────────────────────────────────────
     def _on_bet(self, instance):
         if self.click_snd and not self.sounds_muted:
-            self.click_snd.stop(); self.click_snd.play()
-
+            self.click_snd.stop()
+            self.click_snd.play()
         if self.pistol_snd and not self.sounds_muted:
             if self._pistol_event:
                 Clock.unschedule(self._pistol_event)
             self._pistol_event = Clock.schedule_once(
-                lambda _dt: (self.pistol_snd.stop(), self.pistol_snd.play()), 0.01)
+                lambda _dt: (self.pistol_snd.stop(), self.pistol_snd.play()),
+                0.01
+            )
 
         horse_number = int(instance.text)
         amount       = int(self.bet_input.text)
         try:
             self.controller.place_bet(horse_number, amount)
         except Exception:
-            pass  # controller will show error
+            pass  # controller will call show_bet_error if needed
 
     # ----------------------------------------------------------
     # Balance update
@@ -419,60 +484,89 @@ class GameView(FloatLayout):
     # ----------------------------------------------------------
     # Start race animation
     # ----------------------------------------------------------
-    def start_race_animation(self, _speeds, finish_x):
-        if self.gallop_snd:
+    def start_race_animation(self, horse_speeds, finish_x):
+        if self.gallop_snd and not self.music_muted:
             if self._gallop_event:
                 Clock.unschedule(self._gallop_event)
             self._gallop_event = Clock.schedule_once(
-                lambda _dt: (self.gallop_snd.stop(), self.gallop_snd.play()), 0.5)
+                lambda _dt: (self.gallop_snd.stop(), self.gallop_snd.play()),
+                0.5
+            )
 
-        for spr in self.track.horses:
-            spr.set_running(True)
+        for sprite in self.track.horses:
+            sprite.set_running(True)
 
+        self.leading_label.opacity = 1
         self.finish_x = finish_x
-        self.event = Clock.schedule_interval(self._animate, 1/60)
+        self.event = Clock.schedule_interval(self._animate, 1 / 60)
 
     def _animate(self, dt):
         self.controller.update_speeds_and_positions()
-        for spr in self.track.horses:
-            x = self.track.x + self.controller.model.horses[spr.number - 1].position
-            spr.x = x
+        for sprite in self.track.horses:
+            horse_num = sprite.number
+            horse_pos = self.controller.model.horses[horse_num - 1].position
+            sprite.x = self.track.x + horse_pos
+
+        # update leading horse label
+        leader_num = max(
+            self.track.horses,
+            key=lambda spr: self.controller.model.horses[spr.number - 1].position
+        ).number
+        self.leading_label.text = f"Leading horse: {leader_num}"
 
     # ----------------------------------------------------------
     # Reset track
     # ----------------------------------------------------------
     def reset_track(self):
-        if self.gallop_snd: self.gallop_snd.stop()
+        if self.gallop_snd:
+            self.gallop_snd.stop()
         if self._gallop_event:
-            Clock.unschedule(self._gallop_event); self._gallop_event = None
+            Clock.unschedule(self._gallop_event)
+            self._gallop_event = None
 
         self.track._setup()
         self.control_panel.opacity  = 1
         self.control_panel.disabled = False
+
+        self.leading_label.opacity = 0
+        self.leading_label.text    = ""
 
     # ──────────────────────────────────────────────────────────
     #  Result popup
     # ──────────────────────────────────────────────────────────
     def show_result(self, winner, player_won, payout):
         if self.pop_snd and not self.sounds_muted:
-            self.pop_snd.stop(); self.pop_snd.play()
+            self.pop_snd.stop()
+            self.pop_snd.play()
         if player_won and self.win_snd and not self.sounds_muted:
-            self.win_snd.stop(); self.win_snd.play()
+            self.win_snd.stop()
+            self.win_snd.play()
 
-        l1 = Label(text=f"Horse number {winner} wins!",
-                   font_size="22sp", font_name="Arcade",
-                   color=(0, 0, 0, 1))
+        line1 = Label(
+            text=f"Horse number {winner} wins!",
+            font_size="22sp",
+            font_name="Arcade",
+            color=(0, 0, 0, 1)
+        )
+
         if player_won:
-            l2 = Label(text=f"You won ${payout}!",
-                       font_size="18sp", font_name="Arcade",
-                       color=(0, 0.6, 0, 1))
+            line2 = Label(
+                text=f"You won ${payout}!",
+                font_size="18sp",
+                font_name="Arcade",
+                color=(0, 0.6, 0, 1)
+            )
         else:
-            l2 = Label(text=f"You lost ${payout}.",
-                       font_size="18sp", font_name="Arcade",
-                       color=(0.8, 0, 0, 1))
+            line2 = Label(
+                text=f"You lost ${payout}.",
+                font_size="18sp",
+                font_name="Arcade",
+                color=(0.8, 0, 0, 1)
+            )
 
         content = BoxLayout(orientation="vertical", padding=10, spacing=10)
-        content.add_widget(l1); content.add_widget(l2)
+        content.add_widget(line1)
+        content.add_widget(line2)
 
         self.result_popup = Popup(
             title="RACE RESULT",
@@ -486,8 +580,29 @@ class GameView(FloatLayout):
             background="assets/images/texture5.png",
             border=(0, 0, 0, 0),
             separator_height=0,
-            auto_dismiss=False,
+            auto_dismiss=False
         )
+
+        # draw black border around popup
+        with self.result_popup.canvas.after:
+            Color(0, 0, 0, 1)
+            outline = Line(
+                rectangle=(self.result_popup.x,
+                           self.result_popup.y,
+                           self.result_popup.width,
+                           self.result_popup.height),
+                width=2
+            )
+
+        def _update_border(*args):
+            outline.rectangle = (
+                self.result_popup.x,
+                self.result_popup.y,
+                self.result_popup.width,
+                self.result_popup.height
+            )
+
+        self.result_popup.bind(pos=_update_border, size=_update_border)
         self.result_popup.open()
 
     # ──────────────────────────────────────────────────────────
@@ -504,62 +619,79 @@ class GameView(FloatLayout):
         cp_x, cp_y   = self.control_panel.pos
         cp_w, cp_h   = self.control_panel.size
         lw, lh       = self.bet_error_label.size
-        self.bet_error_label.pos = (cp_x + (cp_w - lw)/2, cp_y + cp_h + 15)
+        self.bet_error_label.pos = (
+            cp_x + (cp_w - lw) / 2,
+            cp_y + cp_h + 15
+        )
 
         if self._bet_error_timer:
             Clock.unschedule(self._bet_error_timer)
         self._bet_error_timer = Clock.schedule_once(self._hide_bet_error, 2)
 
-    def _hide_bet_error(self, _dt):
+    def _hide_bet_error(self, dt):
         self.bet_error_label.opacity = 0
         self.bet_error_label.text    = ""
 
     # ──────────────────────────────────────────────────────────
-    #  Deposit popup (unchanged functionality)
+    #  Deposit popup (updated styling)
     # ──────────────────────────────────────────────────────────
     def show_deposit_popup(self):
         content = BoxLayout(orientation="vertical", padding=15, spacing=15)
-        content.add_widget(Label(text="ENTER DEPOSIT AMOUNT:",
-                                 color=(0, 0, 0, 1),
-                                 font_size="20sp",
-                                 font_name="Arcade",
-                                 size_hint=(1, 0.2),
-                                 halign="center", valign="middle"))
 
-        self.deposit_input = TextInput(text="0",
-                                       multiline=False,
-                                       input_filter="int",
-                                       foreground_color=(1, 1, 1, 1),
-                                       background_normal="assets/images/texture3.png",
-                                       background_active="assets/images/texture3.png",
-                                       font_size="16sp",
-                                       font_name="Arcade",
-                                       halign="center",
-                                       size_hint=(1, None),
-                                       height=70,
-                                       padding=[10, 0, 10, 0])
-        def _rcn(_i,_v):
-            off = (self.deposit_input.height - self.deposit_input.line_height)/2
-            self.deposit_input.padding = [10, max(0, off), 10, max(0, off)]
-        _rcn(None, None)
-        self.deposit_input.bind(size=_rcn, font_size=_rcn)
+        content.add_widget(Label(
+            text="ENTER DEPOSIT AMOUNT:",
+            color=(0, 0, 0, 1),
+            font_size="20sp",
+            font_name="Arcade",
+            size_hint=(1, 0.2),
+            halign="center",
+            valign="middle"
+        ))
+
+        self.deposit_input = TextInput(
+            text="0",
+            multiline=False,
+            input_filter="int",
+            foreground_color=(1, 1, 1, 1),
+            background_normal="assets/images/texture3.png",
+            background_active="assets/images/texture3.png",
+            font_size="16sp",
+            font_name="Arcade",
+            halign="center",
+            size_hint=(1, None),
+            height=70,
+            padding=[10, 0, 10, 0]
+        )
+        def _recenter_deposit(_inst, _val):
+            offset = (self.deposit_input.height - self.deposit_input.line_height) / 2
+            offset = max(offset, 0)
+            self.deposit_input.padding = [10, offset, 10, offset]
+        _recenter_deposit(None, None)
+        self.deposit_input.bind(size=_recenter_deposit, font_size=_recenter_deposit)
         content.add_widget(self.deposit_input)
 
-        row = BoxLayout(size_hint=(1, 0.3), spacing=20)
-        add_btn = Button(text="ADD",
-                         color=(1, 1, 1, 1),
-                         background_normal="assets/images/texture2.png",
-                         background_down="assets/images/texture4.png",
-                         font_size="20sp", font_name="Arcade",
-                         size_hint=(0.45, 1))
-        cancel_btn = Button(text="CANCEL",
-                            color=(1, 1, 1, 1),
-                            background_normal="assets/images/texture2.png",
-                            background_down="assets/images/texture4.png",
-                            font_size="20sp", font_name="Arcade",
-                            size_hint=(0.45, 1))
-        row.add_widget(add_btn); row.add_widget(cancel_btn)
-        content.add_widget(row)
+        self._deposit_button_row = BoxLayout(size_hint=(1, 0.3), spacing=20)
+        add_btn = Button(
+            text="ADD",
+            color=(1, 1, 1, 1),
+            background_normal="assets/images/texture10.png",
+            background_down="assets/images/texture4.png",
+            font_size="20sp",
+            font_name="Arcade",
+            size_hint=(0.45, 1)
+        )
+        cancel_btn = Button(
+            text="CANCEL",
+            color=(1, 1, 1, 1),
+            background_normal="assets/images/texture10.png",
+            background_down="assets/images/texture4.png",
+            font_size="20sp",
+            font_name="Arcade",
+            size_hint=(0.45, 1)
+        )
+        self._deposit_button_row.add_widget(add_btn)
+        self._deposit_button_row.add_widget(cancel_btn)
+        content.add_widget(self._deposit_button_row)
 
         self._deposit_popup = Popup(
             title="DEPOSIT FUNDS",
@@ -573,10 +705,31 @@ class GameView(FloatLayout):
             background="assets/images/texture5.png",
             border=(0, 0, 0, 0),
             separator_height=0,
-            auto_dismiss=False,
+            auto_dismiss=False
         )
+
         add_btn.bind(on_release=lambda *_: self._on_deposit_add())
         cancel_btn.bind(on_release=lambda *_: self._on_deposit_cancel())
+
+        with self._deposit_popup.canvas.after:
+            Color(0, 0, 0, 1)
+            outline = Line(
+                rectangle=(self._deposit_popup.x,
+                           self._deposit_popup.y,
+                           self._deposit_popup.width,
+                           self._deposit_popup.height),
+                width=2
+            )
+
+        def _update_deposit_border(*args):
+            outline.rectangle = (
+                self._deposit_popup.x,
+                self._deposit_popup.y,
+                self._deposit_popup.width,
+                self._deposit_popup.height
+            )
+
+        self._deposit_popup.bind(pos=_update_deposit_border, size=_update_deposit_border)
         self._deposit_popup.open()
 
     def _on_deposit_add(self):
@@ -598,9 +751,9 @@ class GameView(FloatLayout):
             self._deposit_popup = None
 
     def show_deposit_error(self, msg):
-        if not hasattr(self, "_deposit_err_added"):
+        if not hasattr(self, "_error_added"):
             Window.add_widget(self.deposit_error_label)
-            self._deposit_err_added = True
+            self._error_added = True
 
         self.deposit_error_label.text = msg
         self.deposit_error_label.opacity = 1
@@ -609,12 +762,15 @@ class GameView(FloatLayout):
             px, py = self._deposit_popup.pos
             pw, ph = self._deposit_popup.size
             lw, lh = self.deposit_error_label.size
-            self.deposit_error_label.pos = (px + (pw - lw)/2, py - lh - 15)
+            self.deposit_error_label.pos = (
+                px + (pw - lw) / 2,
+                py - (lh + 15)
+            )
 
         if hasattr(self, "_deposit_error_timer") and self._deposit_error_timer:
             Clock.unschedule(self._deposit_error_timer)
         self._deposit_error_timer = Clock.schedule_once(self._hide_deposit_error, 2)
 
-    def _hide_deposit_error(self, _dt):
+    def _hide_deposit_error(self, dt):
         self.deposit_error_label.opacity = 0
         self.deposit_error_label.text    = ""
