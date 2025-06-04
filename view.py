@@ -11,6 +11,7 @@ from kivy.clock           import Clock
 from kivy.core.audio      import SoundLoader
 from kivy.core.window     import Window
 from kivy.core.text       import LabelBase
+from kivy.graphics import Color, Ellipse, InstructionGroup
 
 # ──────────────────────────────────────────────────────────────
 # Register custom font
@@ -191,6 +192,9 @@ class GameView(FloatLayout):
         self.pop_snd    = _load("assets/sounds/popup.mp3",          vol=1.0)
         self.pistol_snd = _load("assets/sounds/starterpistol.mp3",  vol=0.8)
         self.win_snd    = _load("assets/sounds/win.mp3",            vol=0.9)
+        self.disappointed_snd = _load("assets/sounds/disappointed.mp3", vol=0.7)
+        self.whip_snd = _load("assets/sounds/whip.mp3", vol=1.0)
+
         # ambience
         self.bg_music   = _load("assets/sounds/music.mp3", loop=True,  vol=0.2)
         self.bg_horse   = _load("assets/sounds/horsebackground.mp3", loop=True, vol=0.5)
@@ -205,6 +209,13 @@ class GameView(FloatLayout):
         # mute flags
         self.music_muted  = False
         self.sounds_muted = False
+
+        # ── NEW STATE VARIABLES ───────────────────────────────────────────
+        self._race_active = False
+        self._selected_horse = None  # which horse the player chose (1..6)
+        self._bet_indicator = None  # will hold InstructionGroup()
+        self._bet_ellipse = None  # direct reference to the Ellipse
+        # ─────────────────────────────────────────────────────────────────
 
         # -------------------------------------------------------
         # Track view
@@ -282,6 +293,20 @@ class GameView(FloatLayout):
             pos_hint={"center_x": 0.5, "y": 0.08}
         )
         self.add_widget(self.leading_label)
+
+    def _play_click(self):
+        if self.click_snd and not self.sounds_muted:
+            self.click_snd.stop()
+            self.click_snd.play()
+
+    def on_touch_down(self, touch):
+        # If a race is currently running, play the whip sound (unless muted)
+        if self._race_active and self.whip_snd and not self.sounds_muted:
+            self.whip_snd.stop()
+            self.whip_snd.play()
+
+        # Always pass the touch event along so Buttons, etc. still receive it
+        return super().on_touch_down(touch)
 
     # ──────────────────────────────────────────────────────────
     #  Generic drawing helpers
@@ -436,8 +461,11 @@ class GameView(FloatLayout):
             sounds_btn.background_normal = "assets/images/texture13.png"
 
         # ── Bind toggles ───────────────────────────────────────────────────
-        music_btn.bind(on_release=lambda *_: self._toggle_music(music_btn))
-        sounds_btn.bind(on_release=lambda *_: self._toggle_sounds(sounds_btn))
+        music_btn.bind(on_release=lambda *_: (self._play_click(), self._toggle_music(music_btn)))
+        sounds_btn.bind(on_release=lambda *_: (self._play_click(), self._toggle_sounds(sounds_btn)))
+        language_btn.bind(
+            on_release=lambda *_: (self._play_click(), self._change_language()))  # if you add language logic
+        close_btn.bind(on_release=lambda *_: (self._play_click(), self.settings_popup.dismiss()))
         # (language_btn can be bound to your own handler, e.g. self._change_language)
         # language_btn.bind(on_release=lambda *_: self._change_language())
 
@@ -487,7 +515,7 @@ class GameView(FloatLayout):
     #  Settings button + popup
     # ──────────────────────────────────────────────────────────
     def _build_tutorial_button(self):
-        book = Button(
+        self.tutorial_btn = Button(
             text="",
             size_hint=(None, None), size=(45, 45),
             pos_hint={"right": .04, "top": 0.34},
@@ -496,8 +524,15 @@ class GameView(FloatLayout):
             border=(0, 0, 0, 0),
             background_color=(1, 1, 1, 1),
         )
-        book.bind(on_release=lambda *_: self._start_tutorial())
-        self.add_widget(book)
+        self.tutorial_btn.bind(on_release=lambda *_: self._start_tutorial())
+        self.add_widget(self.tutorial_btn)
+
+    # ──────────────────────────────────────────────────────────
+    #  Change language
+    # ──────────────────────────────────────────────────────────
+
+    def _change_language(self):
+        pass
 
     # ──────────────────────────────────────────────────────────
     #  Betting / Deposit panel
@@ -595,7 +630,7 @@ class GameView(FloatLayout):
                 font_name="Arcade"
             )
             self.horse_buttons.append(btn)
-            btn.bind(on_release=self._on_bet)
+            btn.bind(on_release=lambda inst: (self._play_click(), self._on_bet(inst)))
             row.add_widget(btn)
             self._add_border(btn, (0, 0, 0, 1), 2)
 
@@ -607,6 +642,7 @@ class GameView(FloatLayout):
     #  Bet button handler
     # ──────────────────────────────────────────────────────────
     def _on_bet(self, instance):
+        # Play click + pistol as before …
         if self.click_snd and not self.sounds_muted:
             self.click_snd.stop()
             self.click_snd.play()
@@ -620,10 +656,15 @@ class GameView(FloatLayout):
 
         horse_number = int(instance.text)
         amount       = int(self.bet_input.text)
+
+        # ── Remember which horse was picked ──────────────────────────────
+        self._selected_horse = horse_number
+
         try:
             self.controller.place_bet(horse_number, amount)
         except Exception:
             pass  # controller will call show_bet_error if needed
+
 
     # ----------------------------------------------------------
     # Balance update
@@ -635,6 +676,57 @@ class GameView(FloatLayout):
     # Start race animation
     # ----------------------------------------------------------
     def start_race_animation(self, horse_speeds, finish_x):
+        # ── hide tutorial button during race ──
+        if hasattr(self, "tutorial_btn"):
+            self.tutorial_btn.opacity  = 0
+            self.tutorial_btn.disabled = True
+
+        # ── NEW: a race is now active ───────────────────────────────────
+        self._race_active = True
+
+        # ── If player has chosen a horse, draw a dark ellipse under it ──
+        if self._selected_horse is not None:
+            idx = self._selected_horse - 1
+            if 0 <= idx < len(self.track.horses):
+                sprite = self.track.horses[idx]
+
+                # 1) Build a new InstructionGroup (clear any old one first)
+                if self._bet_indicator:
+                    # remove previous indicator if still there
+                    self.track.canvas.remove(self._bet_indicator)
+
+                self._bet_indicator = InstructionGroup()
+                # semi‐transparent black
+                self._bet_indicator.add(Color(0, 0, 0, 0.5))
+
+                # Compute initial ellipse size/pos
+                ellipse_w = sprite.width * 1.2
+                ellipse_h = sprite.height * 0.4
+                ellipse_x = sprite.center_x - ellipse_w / 2
+                ellipse_y = sprite.y - ellipse_h / 2 + 20
+
+                # 2) Create the Ellipse and keep a direct reference to it
+                self._bet_ellipse = Ellipse(pos=(ellipse_x, ellipse_y),
+                                            size=(ellipse_w, ellipse_h))
+                self._bet_indicator.add(self._bet_ellipse)
+
+                # 3) Add that group to track.canvas so it is drawn beneath horses
+                self.track.canvas.before.add(self._bet_indicator)
+
+                # 4) Bind the horse sprite’s pos/size so the ellipse follows it
+                def _update_bet_ellipse(*_):
+                    # recalc size/position based on the horse’s current pos/size
+                    new_w = sprite.width * 1.2
+                    new_h = sprite.height * 0.4
+                    new_x = sprite.center_x - new_w / 2
+                    new_y = sprite.y - new_h / 2 + 20
+
+                    self._bet_ellipse.pos  = (new_x, new_y)
+                    self._bet_ellipse.size = (new_w, new_h)
+
+                sprite.bind(pos=_update_bet_ellipse, size=_update_bet_ellipse)
+
+        # ── existing gallop logic ───────────────────────────────────────
         if self.gallop_snd and not self.music_muted:
             if self._gallop_event:
                 Clock.unschedule(self._gallop_event)
@@ -648,7 +740,7 @@ class GameView(FloatLayout):
 
         self.leading_label.opacity = 1
         self.finish_x = finish_x
-        self.event = Clock.schedule_interval(self._animate, 1 / 60)
+        self.event    = Clock.schedule_interval(self._animate, 1 / 60)
 
     def _animate(self, dt):
         self.controller.update_speeds_and_positions()
@@ -681,16 +773,27 @@ class GameView(FloatLayout):
         self.leading_label.opacity = 0
         self.leading_label.text    = ""
 
+        # ── re‐show tutorial button after race ──
+        if hasattr(self, "tutorial_btn"):
+            self.tutorial_btn.opacity  = 1
+            self.tutorial_btn.disabled = False
+
+        # ── NEW: race is no longer active ───────────────────────────────
+        self._race_active = False
+
+        # ── NEW: remove the ellipse indicator if it exists ──────────────
+        if self._bet_indicator:
+            self.track.canvas.remove(self._bet_indicator)
+            self._bet_indicator = None
+            self._bet_ellipse   = None
+
+        # (Optionally clear selected horse if you prefer)
+        # self._selected_horse = None
+
     # ──────────────────────────────────────────────────────────
     #  Result popup
     # ──────────────────────────────────────────────────────────
     def show_result(self, winner, player_won, payout):
-        if self.pop_snd and not self.sounds_muted:
-            self.pop_snd.stop()
-            self.pop_snd.play()
-        if player_won and self.win_snd and not self.sounds_muted:
-            self.win_snd.stop()
-            self.win_snd.play()
 
         line1 = Label(
             text=f"Horse number {winner} wins!",
@@ -700,6 +803,9 @@ class GameView(FloatLayout):
         )
 
         if player_won:
+            if self.win_snd and not self.sounds_muted:
+                self.win_snd.stop()
+                self.win_snd.play()
             line2 = Label(
                 text=f"You won ${payout}!",
                 font_size="18sp",
@@ -707,6 +813,9 @@ class GameView(FloatLayout):
                 color=(0, 0.6, 0, 1)
             )
         else:
+            if self.disappointed_snd and not self.sounds_muted:
+                self.disappointed_snd.stop()
+                self.disappointed_snd.play()
             line2 = Label(
                 text=f"You lost ${payout}.",
                 font_size="18sp",
@@ -786,6 +895,10 @@ class GameView(FloatLayout):
     #  Deposit popup (updated styling)
     # ──────────────────────────────────────────────────────────
     def show_deposit_popup(self):
+        if self.pop_snd and not self.sounds_muted:
+            self.pop_snd.stop()
+            self.pop_snd.play()
+
         content = BoxLayout(orientation="vertical", padding=15, spacing=15)
 
         content.add_widget(Label(
@@ -882,8 +995,8 @@ class GameView(FloatLayout):
             auto_dismiss=False
         )
 
-        add_btn.bind(on_release=lambda *_: self._on_deposit_add())
-        cancel_btn.bind(on_release=lambda *_: self._on_deposit_cancel())
+        add_btn.bind(on_release=lambda *_: (self._play_click(), self._on_deposit_add()))
+        cancel_btn.bind(on_release=lambda *_: (self._play_click(), self._on_deposit_cancel()))
 
         with self._deposit_popup.canvas.after:
             Color(0, 0, 0, 1)
@@ -1087,6 +1200,7 @@ class GameView(FloatLayout):
             prev_outline.rectangle = (*prev_btn.pos, *prev_btn.size)
 
         prev_btn.bind(pos=update_prev_border, size=update_prev_border)
+        prev_btn.bind(on_release=lambda *_: (self._play_click(), self._step_previous()))
 
         next_btn = Button(
             text="Next",
@@ -1107,6 +1221,7 @@ class GameView(FloatLayout):
             next_outline.rectangle = (*next_btn.pos, *next_btn.size)
 
         next_btn.bind(pos=update_next_border, size=update_next_border)
+        next_btn.bind(on_release=lambda *_: (self._play_click(), self._step_next()))
 
         cancel_btn = Button(
             text="Cancel",
@@ -1127,6 +1242,7 @@ class GameView(FloatLayout):
             cancel_outline.rectangle = (*cancel_btn.pos, *cancel_btn.size)
 
         cancel_btn.bind(pos=update_cancel_border, size=update_cancel_border)
+        cancel_btn.bind(on_release=lambda *_: (self._play_click(), self._end_tutorial()))
 
         prev_btn.disabled = (self._tutorial_step == 1)
         next_btn.disabled = (self._tutorial_step == len(steps))
@@ -1151,10 +1267,6 @@ class GameView(FloatLayout):
             separator_height=0,
             auto_dismiss=False
         )
-
-        prev_btn.bind(on_release=lambda *_: self._step_previous())
-        next_btn.bind(on_release=lambda *_: self._step_next())
-        cancel_btn.bind(on_release=lambda *_: self._end_tutorial())
 
         with self._tutorial_popup.canvas.after:
             Color(0, 0, 0, 1)
