@@ -488,7 +488,6 @@ class GameView(FloatLayout):
             separator_height=0,
             auto_dismiss=False,
         )
-        self._add_border(btn, (0, 0, 0, 1), 2)
         self.result_popup.open()
 
     # ──────────────────────────────────────────────────────────
