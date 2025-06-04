@@ -221,6 +221,21 @@ class GameView(FloatLayout):
             valign="middle",
         )
 
+        # ── NEW: “Leading horse” label (hidden until race starts) ─
+        self.leading_label = Label(
+            text="",
+            color=(1, 1, 0, 1),
+            font_size="20sp",
+            font_name="Arcade",
+            size_hint=(0.5, None),
+            height=30,
+            opacity=0,
+            halign="center",
+            valign="middle",
+            pos_hint={"center_x": 0.5, "y": 0.08}
+        )
+        self.add_widget(self.leading_label)
+
     # ────────────────────────────────────────────────────────────
     # HELPER: add a live border to any widget
     # ────────────────────────────────────────────────────────────
@@ -390,28 +405,49 @@ class GameView(FloatLayout):
         for sprite in self.track.horses:
             sprite.set_running(True)
 
+        # show the leading label
+        self.leading_label.opacity = 1
+
         self.finish_x = finish_x
         self.event = Clock.schedule_interval(self._animate, 1 / 60)
 
     def _animate(self, dt):
+        # advance speeds & positions in the model
         self.controller.update_speeds_and_positions()
+
+        # move each sprite to its updated position
         for sprite in self.track.horses:
             horse_num = sprite.number
             horse_pos = self.controller.model.horses[horse_num - 1].position
             sprite.x = self.track.x + horse_pos
 
-    def reset_track(self):
+        # find the current leader
+        leader_num = max(
+            self.track.horses,
+            key=lambda spr: self.controller.model.horses[spr.number - 1].position
+        ).number
 
-         # stop or cancel gallop loop
+        # update the label text
+        self.leading_label.text = f"Leading horse: {leader_num}"
+
+    def reset_track(self):
+        # stop gallop sound if playing
         if self.gallop_snd:
             self.gallop_snd.stop()
         if self._gallop_event:
             Clock.unschedule(self._gallop_event)
             self._gallop_event = None
 
+        # reposition horses
         self.track._setup()
+
+        # hide betting UI
         self.control_panel.opacity = 1
         self.control_panel.disabled = False
+
+        # hide leading‐horse label
+        self.leading_label.opacity = 0
+        self.leading_label.text = ""
 
     def show_result(self, winner, player_won, payout):
         from kivy.uix.boxlayout import BoxLayout
@@ -450,17 +486,10 @@ class GameView(FloatLayout):
                 color=(0.8, 0, 0, 1),
             )
 
-        # textured plates behind each label
-        # self._add_texture_bg(line1, "assets/images/texture4.png")
-        # self._add_texture_bg(line2, "assets/images/texture4.png")
-
         # stack them vertically
         content = BoxLayout(orientation="vertical", padding=10, spacing=10)
         content.add_widget(line1)
         content.add_widget(line2)
-
-        # optional: texture behind the whole content box
-        # self._add_texture_bg(content, "assets/images/texture3.png")
 
         # ------------------------------------------------------------------
         # 2) Create the popup with a custom background + custom title font
