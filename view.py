@@ -295,18 +295,44 @@ class GameView(FloatLayout):
         gear.bind(on_release=lambda *_: self._show_settings_popup())
         self.add_widget(gear)
 
-
-
     def _toggle_music(self, btn):
+        # Flip the flag
         self.music_muted = not self.music_muted
+
+        # Update the button text
         btn.text = "UNMUTE MUSIC" if self.music_muted else "MUTE MUSIC"
+
+        # Swap in the correct textures:
+        if self.music_muted:
+            # Muted → red textures
+            btn.background_normal = "assets/images/texture13.png"
+            btn.background_down = "assets/images/texture14.png"
+        else:
+            # Unmuted → grey textures
+            btn.background_normal = "assets/images/texture10.png"
+            btn.background_down = "assets/images/texture12.png"
+        # Adjust the volumes
         for snd in (self.bg_music, self.bg_horse, self.gallop_snd):
             if snd:
                 snd.volume = 0 if self.music_muted else snd._orig_vol
 
     def _toggle_sounds(self, btn):
+        # Flip the flag
         self.sounds_muted = not self.sounds_muted
+
+        # Update the button text
         btn.text = "UNMUTE SOUNDS" if self.sounds_muted else "MUTE SOUNDS"
+
+        # Swap in the correct textures:
+        if self.sounds_muted:
+            # Muted → red textures
+            btn.background_normal = "assets/images/texture13.png"
+            btn.background_down = "assets/images/texture14.png"
+        else:
+            # Unmuted → grey textures
+            btn.background_normal = "assets/images/texture10.png"
+            btn.background_down = "assets/images/texture12.png"
+        # Adjust the volumes
         for snd in (self.click_snd, self.pop_snd, self.pistol_snd, self.win_snd):
             if snd:
                 snd.volume = 0 if self.sounds_muted else snd._orig_vol
@@ -318,46 +344,74 @@ class GameView(FloatLayout):
 
         root = FloatLayout()
 
+        # ── Close button (always at the bottom) ───────────────────────────────
         close_btn = Button(
-            text="X",
+            text="CLOSE",
             font_size="22sp",
             font_name="Arcade",
-            size_hint=(None, None),
-            size=(50, 50),
-            background_normal="assets/images/texture2.png",
-            background_down="assets/images/texture4.png",
+            size_hint=(0.8, 0.18),
+            background_normal="assets/images/texture10.png",
+            background_down="assets/images/texture12.png",
             border=(0, 0, 0, 0),
-            pos_hint={"right": 1, "top": 1}
+            pos_hint={"center_x": 0.5, "center_y": 0.16},
         )
-        music_btn = Button(
-            text="MUTE MUSIC" if not self.music_muted else "UNMUTE MUSIC",
+
+        # ── Language button (between Sounds and Close) ───────────────────────
+        language_btn = Button(
+            text="LANGUAGE",
             font_size="22sp",
             font_name="Arcade",
-            size_hint=(0.8, 0.25),
-            pos_hint={"center_x": 0.5, "center_y": 0.6},
-            background_normal="assets/images/texture2.png",
-            background_down="assets/images/texture4.png",
-            border=(0, 0, 0, 0)
+            size_hint=(0.8, 0.18),
+            pos_hint={"center_x": 0.5, "center_y": 0.39},
+            background_normal="assets/images/texture10.png",
+            background_down="assets/images/texture12.png",
+            border=(0, 0, 0, 0),
         )
+
+        # ── Sounds button (below Music) ──────────────────────────────────────
         sounds_btn = Button(
             text="MUTE SOUNDS" if not self.sounds_muted else "UNMUTE SOUNDS",
             font_size="22sp",
             font_name="Arcade",
-            size_hint=(0.8, 0.25),
-            pos_hint={"center_x": 0.5, "center_y": 0.3},
-            background_normal="assets/images/texture2.png",
-            background_down="assets/images/texture4.png",
-            border=(0, 0, 0, 0)
+            size_hint=(0.8, 0.18),
+            pos_hint={"center_x": 0.5, "center_y": 0.62},
+            background_normal="assets/images/texture10.png",
+            background_down="assets/images/texture12.png",
+            border=(0, 0, 0, 0),
         )
 
-        for b in (close_btn, music_btn, sounds_btn):
-            self._add_border(b, (0, 0, 0, 1), 2)
-            root.add_widget(b)
+        # ── Music button (at the top) ────────────────────────────────────────
+        music_btn = Button(
+            text="MUTE MUSIC" if not self.music_muted else "UNMUTE MUSIC",
+            font_size="22sp",
+            font_name="Arcade",
+            size_hint=(0.8, 0.18),
+            pos_hint={"center_x": 0.5, "center_y": 0.85},
+            background_normal="assets/images/texture10.png",
+            background_down="assets/images/texture12.png",
+            border=(0, 0, 0, 0),
+        )
 
+        # ── Draw black borders on all four buttons ──────────────────────────
+        for btn in (music_btn, sounds_btn, language_btn, close_btn):
+            self._add_border(btn, (0, 0, 0, 1), 2)
+            root.add_widget(btn)
+
+        # ── Immediately switch Music/Sounds to texture13 if they are muted ──
+        if self.music_muted:
+            music_btn.background_normal = "assets/images/texture13.png"
+        if self.sounds_muted:
+            sounds_btn.background_normal = "assets/images/texture13.png"
+
+        # ── Bind toggles ───────────────────────────────────────────────────
         music_btn.bind(on_release=lambda *_: self._toggle_music(music_btn))
         sounds_btn.bind(on_release=lambda *_: self._toggle_sounds(sounds_btn))
+        # (language_btn can be bound to your own handler, e.g. self._change_language)
+        # language_btn.bind(on_release=lambda *_: self._change_language())
 
-        settings_popup = Popup(
+        close_btn.bind(on_release=lambda *_: self.settings_popup.dismiss())
+
+        self.settings_popup = Popup(
             title="SETTINGS",
             title_font="assets/fonts/arcade.ttf",
             title_size="26sp",
@@ -365,14 +419,37 @@ class GameView(FloatLayout):
             title_color=(1, 1, 1, 1),
             content=root,
             size_hint=(None, None),
-            size=(500, 350),
+            size=(500, 450),
             background="assets/images/texture5.png",
             border=(0, 0, 0, 0),
             separator_height=0,
             auto_dismiss=False,
         )
-        close_btn.bind(on_release=lambda *_: settings_popup.dismiss())
-        settings_popup.open()
+
+        # ── Draw a black border around the Popup itself ───────────────────────
+        with self.settings_popup.canvas.after:
+            Color(0, 0, 0, 1)
+            outline = Line(
+                rectangle=(
+                    self.settings_popup.x,
+                    self.settings_popup.y,
+                    self.settings_popup.width,
+                    self.settings_popup.height
+                ),
+                width=2
+            )
+
+        def _update_settings_border(*args):
+            outline.rectangle = (
+                self.settings_popup.x,
+                self.settings_popup.y,
+                self.settings_popup.width,
+                self.settings_popup.height
+            )
+
+        self.settings_popup.bind(pos=_update_settings_border, size=_update_settings_border)
+
+        self.settings_popup.open()
 
     # ──────────────────────────────────────────────────────────
     #  Settings button + popup
