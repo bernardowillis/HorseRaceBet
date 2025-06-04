@@ -465,23 +465,42 @@ class GameView(FloatLayout):
         # ------------------------------------------------------------------
         # 2) Create the popup with a custom background + custom title font
         # ------------------------------------------------------------------
+        # After creating the Popup, add a canvas.after instruction to draw a black border.
+
         self.result_popup = Popup(
-            title="RACE RESULT",                       # text shown in the bar
-            title_font="assets/fonts/arcade.ttf",      # <— arcade font
+            title="RACE RESULT",
+            title_font="assets/fonts/arcade.ttf",
             title_size="28sp",
-            title_align="center", 
-
+            title_align="center",
             title_color=(1, 1, 1, 1),
-
             content=content,
             size_hint=(None, None),
             size=(580, 240),
-
-            background="assets/images/texture5.png",   # <— your texture here
-            border=(0, 0, 0, 0),                       # no 9-patch stretch
-            separator_height=0,                        # hide grey line
+            background="assets/images/texture5.png",  # your texture
+            border=(0, 0, 0, 0),
+            separator_height=0,
             auto_dismiss=False,
         )
+
+        # Draw a black Line around the popup’s rectangle
+        with self.result_popup.canvas.after:
+            Color(0, 0, 0, 1)
+            outline = Line(rectangle=(self.result_popup.x,
+                                      self.result_popup.y,
+                                      self.result_popup.width,
+                                      self.result_popup.height),
+                           width=2)
+
+        # Keep the outline in sync with the popup’s position and size
+        def _update_border(*args):
+            outline.rectangle = (
+                self.result_popup.x,
+                self.result_popup.y,
+                self.result_popup.width,
+                self.result_popup.height
+            )
+
+        self.result_popup.bind(pos=_update_border, size=_update_border)
         self.result_popup.open()
 
     # ────────────────────────────────────────────────────────────
@@ -624,6 +643,26 @@ class GameView(FloatLayout):
 
         add_btn.bind(on_release=lambda inst: self._on_deposit_add())
         cancel_btn.bind(on_release=lambda inst: self._on_deposit_cancel())
+
+        # Draw a black Line around the popup’s rectangle
+        with self._deposit_popup.canvas.after:
+            Color(0, 0, 0, 1)
+            outline = Line(rectangle=(self._deposit_popup.x,
+                                      self._deposit_popup.y,
+                                      self._deposit_popup.width,
+                                      self._deposit_popup.height),
+                           width=2)
+
+        # Keep the outline in sync with the popup’s position and size
+        def _update_deposit_border(*args):
+            outline.rectangle = (
+                self._deposit_popup.x,
+                self._deposit_popup.y,
+                self._deposit_popup.width,
+                self._deposit_popup.height
+            )
+
+        self._deposit_popup.bind(pos=_update_deposit_border, size=_update_deposit_border)
 
         self._deposit_popup.open()
 
