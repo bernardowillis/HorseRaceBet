@@ -195,11 +195,12 @@ class GameView(FloatLayout):
         # -------------------------------------------------------
         self._build_tutorial_button()
         # ── Tutorial state variables ───────────────────────────────────
-        self._tutorial_step    = 0
-        self._tutorial_overlay = None
-        self._tutorial_popup   = None
-        self._highlight_line   = None  # will hold a Line to highlight widgets
-
+        self._tutorial_step = 0
+        self._tutorial_overlay = None  # we will store the overlay Widget here
+        self._tutorial_rect = None  # <— new: will point to the Rectangle instruction
+        self._tutorial_popup = None
+        self._highlight_line = None
+        self.highlight_widget = None
 
         # -------------------------------------------------------
         # Misc. labels / popups
@@ -398,6 +399,7 @@ class GameView(FloatLayout):
             size_hint=(1, 0.2),
             pos_hint={"x": 0, "y": 0}
         )
+        # Background texture for the control panel
         with self.control_panel.canvas.before:
             self.bg_rect = Rectangle(
                 source="assets/images/texture1.png",
@@ -410,9 +412,10 @@ class GameView(FloatLayout):
         )
         self._add_border(self.control_panel, (0, 0, 0, 1), 2)
 
-        # ---- top row --------------------------------------------------- #
+        # ---- top row (Bet amount, balance, Deposit button) ---- #
         top = BoxLayout(size_hint=(1, 0.4))
 
+        # “Bet Amount” label
         top.add_widget(Label(
             text=self.lang.get("bet_amount"),
             color=(0, 0, 0, 1),
@@ -420,6 +423,7 @@ class GameView(FloatLayout):
             font_name="Arcade"
         ))
 
+        # Bet input field
         self.bet_input = TextInput(
             text="10",
             multiline=False,
@@ -441,6 +445,7 @@ class GameView(FloatLayout):
         top.add_widget(self.bet_input)
         self._add_border(self.bet_input, (0, 0, 0, 1), 2)
 
+        # Balance display
         self.balance_label = Label(
             text="",
             color=(0, 0, 0, 1),
@@ -449,8 +454,8 @@ class GameView(FloatLayout):
         )
         top.add_widget(self.balance_label)
 
-        # Create and store a reference to the Deposit button:
-        self.deposit_btn = Button(
+        # **Deposit** button (store reference for tutorial highlighting)
+        deposit_btn = Button(
             text="Deposit",
             color=(0, 0, 0, 1),
             background_normal="",
@@ -460,16 +465,15 @@ class GameView(FloatLayout):
             font_size="24sp",
             font_name="Arcade"
         )
-        self.deposit_btn.bind(on_release=lambda *_: self.show_deposit_popup())
-        top.add_widget(self.deposit_btn)
-        self._add_border(self.deposit_btn, (0, 0, 0, 1), 2)
+        self.deposit_btn = deposit_btn
+        deposit_btn.bind(on_release=lambda *_: self.show_deposit_popup())
+        top.add_widget(deposit_btn)
+        self._add_border(deposit_btn, (0, 0, 0, 1), 2)
 
         self.control_panel.add_widget(top)
 
-        # ---- bottom row ------------------------------------------------ #
+        # ---- bottom row (Horse‐selection buttons) ---- #
         row = BoxLayout(size_hint=(1, 0.5))
-
-        # Keep references to each horse button in a list:
         self.horse_buttons = []
         for i in range(6):
             btn = Button(
@@ -481,12 +485,10 @@ class GameView(FloatLayout):
                 font_size="30sp",
                 font_name="Arcade"
             )
+            self.horse_buttons.append(btn)
             btn.bind(on_release=self._on_bet)
             row.add_widget(btn)
             self._add_border(btn, (0, 0, 0, 1), 2)
-
-            # store reference:
-            self.horse_buttons.append(btn)
 
         self.control_panel.add_widget(row)
 
@@ -848,164 +850,200 @@ class GameView(FloatLayout):
         self._show_tutorial_step()
 
     def _show_tutorial_step(self):
-        # Clean up any existing popup/highlight first
+        # 1) Dismiss any existing tutorial popup or highlight
         if self._tutorial_popup:
             self._tutorial_popup.dismiss()
             self._tutorial_popup = None
-        if self._highlight_line:
-            self._highlight_line.canvas.after.clear()
-            self._highlight_line = None
 
-        # 1) Ensure a semi‐transparent overlay covers the entire window
+        if self.highlight_widget:
+            self.remove_widget(self.highlight_widget)
+            self.highlight_widget = None
+
+        # 2) Create or update the semi‐transparent overlay above the betting panel only
+        panel_h = self.control_panel.height
+
+        # ── create (or update) a semi-transparent rectangle inside self.track.canvas.before ──
+        # ── create (or update) a semi‐transparent overlay above the entire track ──
+
         if not self._tutorial_overlay:
+            # ── replace with this ──
             overlay = Widget()
             with overlay.canvas:
                 Color(0, 0, 0, 0.6)
-                rect = Rectangle(pos=(0, 0), size=Window.size)
-            # Update overlay size on window resize:
-            def _resize_overlay(_, __):
-                rect.size = Window.size
+                # cover everything except control_panel (which sits at y==0)
+                self._tutorial_rect = Rectangle(
+                    pos=(0, self.control_panel.height),
+                    size=(Window.width, Window.height - self.control_panel.height)
+                )
+
+            def _resize_overlay(*_):
+                self._tutorial_rect.pos = (0, self.control_panel.height)
+                self._tutorial_rect.size = (Window.width, Window.height - self.control_panel.height)
+
             Window.bind(size=_resize_overlay)
+            self.control_panel.bind(size=_resize_overlay)
 
+            self.add_widget(overlay)
+            # put control_panel back on top:
+            self.remove_widget(self.control_panel)
+            self.add_widget(self.control_panel)
             self._tutorial_overlay = overlay
-            self.add_widget(self._tutorial_overlay)
 
-        # 2) Prepare step text and what to highlight
+
+        else:
+            # update the overlay to cover everything above the control_panel
+            self._tutorial_rect.pos = (0, self.control_panel.height)
+            self._tutorial_rect.size = (Window.width, Window.height - self.control_panel.height)
+
+        # 3) Decide which step text and which widget(s) to highlight
         steps = {
-            1: "Welcome! In this game, you bet on six horses. Choose your horse and see who wins!",
-            2: "“Balance” shows your current money available to bet.",
-            3: "Use the “Bet Amount” field to set how much you want to wager.",
-            4: "Click the “Deposit” button to add more funds to your balance.",
-            5: "Press one of the six horse buttons to place your bet on that horse.",
+            1: "Welcome! In this game, you bet on\nsix horses. Choose your horse and\nsee who wins!\n",
+            2: "“Balance” shows your current money\navailable to bet.",
+            3: "Use the “Bet Amount” field to set\nhow much you want to wager.",
+            4: "Click the “Deposit” button to add\nmore funds to your balance.",
+            5: "Press one of the six horse buttons\nto place your bet on that horse."
         }
         step_text = steps.get(self._tutorial_step, "")
-        # The widget to highlight for each step:
+
         highlight_map = {
-            2: self.balance_label,
-            3: self.bet_input,
-            4: self.deposit_btn,
-            5: self.horse_buttons  # list of all six; highlight the group
+            2: [self.balance_label],
+            3: [self.bet_input],
+            4: [self.deposit_btn],  # make sure you have stored self.deposit_btn in _build_controls
+            5: self.horse_buttons  # make sure you have a list self.horse_buttons in _build_controls
         }
 
-        # 3) Draw a border around the highlighted widget(s)
-        if self._tutorial_step in (2, 3, 4):
-            widget_to_highlight = highlight_map[self._tutorial_step]
-            # Draw a white border around it:
-            with widget_to_highlight.canvas.after:
-                Color(1, 1, 1, 1)
-                ln = Line(rectangle=(
-                    widget_to_highlight.x,
-                    widget_to_highlight.y,
-                    widget_to_highlight.width,
-                    widget_to_highlight.height
-                ), width=2)
-            self._highlight_line = widget_to_highlight
-            # Keep that border synced:
-            def _sync_border(*_):
-                ln.rectangle = (
-                    widget_to_highlight.x,
-                    widget_to_highlight.y,
-                    widget_to_highlight.width,
-                    widget_to_highlight.height
-                )
-            widget_to_highlight.bind(pos=_sync_border, size=_sync_border)
+        # 4) Draw a red border around the target widget(s), if needed
+        # 4) Draw a red border on top of the target widget(s), if needed
+        if self._tutorial_step in (2, 3, 4, 5):
+            targets = highlight_map[self._tutorial_step]
+            min_x = min(w.x for w in targets)
+            min_y = min(w.y for w in targets)
+            max_x = max(w.x + w.width for w in targets)
+            max_y = max(w.y + w.height for w in targets)
+            w_box = max_x - min_x
+            h_box = max_y - min_y
 
-        elif self._tutorial_step == 5:
-            # Highlight all six horse buttons by drawing a border around their bounding box
-            buttons = highlight_map[5]
-            # compute bounding box of all six buttons
-            min_x = min(b.x for b in buttons)
-            min_y = min(b.y for b in buttons)
-            max_x = max(b.x + b.width for b in buttons)
-            max_y = max(b.y + b.height for b in buttons)
-            w = max_x - min_x
-            h = max_y - min_y
-            container = Widget()
-            with container.canvas:
-                Color(1, 1, 1, 1)
-                ln = Line(rectangle=(min_x, min_y, w, h), width=2)
-            self._highlight_line = container
-            self.add_widget(self._highlight_line)
-            # sync on resize/movement of any horse button
-            def _sync_all(*_):
-                min_x2 = min(b.x for b in buttons)
-                min_y2 = min(b.y for b in buttons)
-                max_x2 = max(b.x + b.width for b in buttons)
-                max_y2 = max(b.y + b.height for b in buttons)
-                ln.rectangle = (min_x2, min_y2, max_x2 - min_x2, max_y2 - min_y2)
+            # create a Widget purely to hold the red Line
+            hw = Widget()
 
-            for b in buttons:
-                b.bind(pos=_sync_all, size=_sync_all)
+            # Draw the Line under hw.canvas.after so it appears ABOVE the widget being highlighted
+            with hw.canvas.after:
+                Color(1, 0, 0, 1)  # bright red
+                ln = Line(rectangle=(min_x, min_y, w_box, h_box), width=2)
 
-        # 4) Build the tutorial popup UI
-        root = BoxLayout(orientation="vertical", padding=15, spacing=10)
+            def _sync_red_border(*_):
+                nx = min(w.x for w in targets)
+                ny = min(w.y for w in targets)
+                mx = max(w.x + w.width for w in targets)
+                my = max(w.y + w.height for w in targets)
+                ln.rectangle = (nx, ny, mx - nx, my - ny)
+
+            for w in targets:
+                w.bind(pos=_sync_red_border, size=_sync_red_border)
+
+            self.highlight_widget = hw
+            # Make sure the highlight Widget is above the track (and above the hue).
+            # In a FloatLayout, the last‐added widget floats on top.
+            self.add_widget(self.highlight_widget)
+
+        # 5) Build the centered popup UI for this step
+        content = BoxLayout(orientation="vertical", padding=15, spacing=10)
 
         text_lbl = Label(
             text=step_text,
-            color=(1, 1, 1, 1),
-            font_size="20sp",
+            color=(0, 0, 0, 1),
+            font_size="16sp",
             font_name="Arcade",
             size_hint=(1, 0.6),
-            halign="center",
-            valign="middle",
+            halign="left",
+            valign="middle"
         )
-        root.add_widget(text_lbl)
+        content.add_widget(text_lbl)
 
         btn_row = BoxLayout(size_hint=(1, 0.4), spacing=20)
         prev_btn = Button(
             text="Previous",
-            size_hint=(0.3, 1),
+            size_hint=(0.1, 1),
             font_size="18sp",
             font_name="Arcade",
-            background_normal="assets/images/texture2.png",
-            background_down="assets/images/texture4.png",
-            color=(1, 1, 1, 1),
+            background_normal="assets/images/texture10.png",
+            background_down="assets/images/texture12.png",
+            color=(1, 1, 1, 1)
         )
+        # Add a black border to the PREVIOUS button
+        with prev_btn.canvas.after:
+            Color(0, 0, 0, 1)
+            prev_outline = Line(rectangle=(0, 0, 0, 0), width=2)
+
+        def update_prev_border(*args):
+            prev_outline.rectangle = (*prev_btn.pos, *prev_btn.size)
+
+        prev_btn.bind(pos=update_prev_border, size=update_prev_border)
+
         next_btn = Button(
             text="Next",
-            size_hint=(0.3, 1),
+            size_hint=(0.1, 1),
             font_size="18sp",
             font_name="Arcade",
-            background_normal="assets/images/texture2.png",
-            background_down="assets/images/texture4.png",
-            color=(1, 1, 1, 1),
-        )
-        cancel_btn = Button(
-            text="Cancel",
-            size_hint=(0.3, 1),
-            font_size="18sp",
-            font_name="Arcade",
-            background_normal="assets/images/texture2.png",
-            background_down="assets/images/texture4.png",
-            color=(1, 1, 1, 1),
+            background_normal="assets/images/texture10.png",
+            background_down="assets/images/texture12.png",
+            color=(1, 1, 1, 1)
         )
 
-        # Disable “Previous” if on step 1, disable “Next” if on last step
+        # Add a black border to the NEXT button
+        with next_btn.canvas.after:
+            Color(0, 0, 0, 1)
+            next_outline = Line(rectangle=(0, 0, 0, 0), width=2)
+
+        def update_next_border(*args):
+            next_outline.rectangle = (*next_btn.pos, *next_btn.size)
+
+        next_btn.bind(pos=update_next_border, size=update_next_border)
+
+        cancel_btn = Button(
+            text="Cancel",
+            size_hint=(0.1, 1),
+            font_size="18sp",
+            font_name="Arcade",
+            background_normal="assets/images/texture10.png",
+            background_down="assets/images/texture12.png",
+            color=(1, 1, 1, 1)
+        )
+
+        # Add a black border to the CANCEL button
+        with cancel_btn.canvas.after:
+            Color(0, 0, 0, 1)
+            cancel_outline = Line(rectangle=(0, 0, 0, 0), width=2)
+
+        def update_cancel_border(*args):
+            cancel_outline.rectangle = (*cancel_btn.pos, *cancel_btn.size)
+
+        cancel_btn.bind(pos=update_cancel_border, size=update_cancel_border)
+
         prev_btn.disabled = (self._tutorial_step == 1)
         next_btn.disabled = (self._tutorial_step == len(steps))
 
         btn_row.add_widget(prev_btn)
         btn_row.add_widget(next_btn)
         btn_row.add_widget(cancel_btn)
-        root.add_widget(btn_row)
+        content.add_widget(btn_row)
 
-        # Center the popup in the window
         self._tutorial_popup = Popup(
-            title=f"TUTORIAL (Step {self._tutorial_step}/{len(steps)})",
+            title=f"TUTORIAL - {self._tutorial_step}/{len(steps)}",
             title_font="assets/fonts/arcade.ttf",
             title_size="24sp",
             title_align="center",
             title_color=(1, 1, 1, 1),
-            content=root,
+            content=content,
             size_hint=(None, None),
-            size=(500, 300),
+            size=(670, 350),
             background="assets/images/texture5.png",
+            overlay_color=(0, 0, 0, 0),  # ← disable the Popup’s own dimming
             border=(0, 0, 0, 0),
             separator_height=0,
             auto_dismiss=False
         )
 
-        # Bind navigation callbacks
         prev_btn.bind(on_release=lambda *_: self._step_previous())
         next_btn.bind(on_release=lambda *_: self._step_next())
         cancel_btn.bind(on_release=lambda *_: self._end_tutorial())
@@ -1024,7 +1062,6 @@ class GameView(FloatLayout):
             self._show_tutorial_step()
 
     def _end_tutorial(self):
-        # Remove popup, overlay, and highlight border
         if self._tutorial_popup:
             self._tutorial_popup.dismiss()
             self._tutorial_popup = None
@@ -1032,13 +1069,11 @@ class GameView(FloatLayout):
         if self._tutorial_overlay:
             self.remove_widget(self._tutorial_overlay)
             self._tutorial_overlay = None
+            self._tutorial_rect = None
 
-        if self._highlight_line:
-            # If we created a separate container widget for step 5, remove it;
-            # otherwise clear the canvas.after border we drew.
-            if isinstance(self._highlight_line, Widget):
-                self.remove_widget(self._highlight_line)
-            else:
-                self._highlight_line.canvas.after.clear()
-            self._highlight_line = None
+        if self.highlight_widget:
+            self.remove_widget(self.highlight_widget)
+            self.highlight_widget = None
+
+
 
