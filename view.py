@@ -31,6 +31,11 @@ class RaceTrack(Widget):
             self.grass_bottom = Rectangle(source="assets/images/grass2.png")
             self.track_bg     = Rectangle(source="assets/images/racetrack.png")
 
+            # ── NEW: create a black vertical line (start‐line) placeholder ──
+            Color(0.55, 0.27, 0.07, 0.1)  # solid black
+            # initially give it zero length; we will set its points in _update_layout
+            self.start_line = Line(points=[0, 0, 0, 0], width=6)
+
         self.finish_line_image = Image(
             source="assets/images/finish_line_1.png",
             allow_stretch=True,
@@ -45,23 +50,50 @@ class RaceTrack(Widget):
 
     def _update_layout(self, *args):
         x, y, w, h = self.x, self.y, self.width, self.height
-        grass_height  = h * 0.05
+        grass_height = h * 0.05
         bottom_height = h * 0.20
 
-        self.grass_top.pos  = (x, y + h - grass_height)
+        # ─────────────────────────────────────────────────────────────────
+        # Position top grass, bottom grass, and track background:
+        self.grass_top.pos = (x, y + h - grass_height)
         self.grass_top.size = (w, grass_height)
 
-        self.grass_bottom.pos  = (x, y)
+        self.grass_bottom.pos = (x, y)
         self.grass_bottom.size = (w, bottom_height)
 
-        self.track_bg.pos  = (x, y + bottom_height)
+        self.track_bg.pos = (x, y + bottom_height)
         self.track_bg.size = (w, h - bottom_height - grass_height)
+        # ─────────────────────────────────────────────────────────────────
 
-        finish_x   = x + w * 0.9
-        track_y    = y + bottom_height
-        track_h    = h - bottom_height - grass_height
+        # Re‐position the finish line image:
+        finish_x = x + w * 0.9
+        track_y = y + bottom_height
+        track_h = h - bottom_height - grass_height
         self.finish_line_image.size = (60, track_h)
-        self.finish_line_image.pos  = (finish_x, track_y)
+        self.finish_line_image.pos = (finish_x, track_y)
+
+        # ─────────────────────────────────────────────────────────────────
+        #  NEW: Update the vertical start‐line so that it spans exactly
+        #  from the bottom of the top grass down to the top of the bottom grass.
+        #
+        #  We want the horses to start at x = (x + w * 0.1). That same x
+        #  is where we draw a black vertical line of height = track_h.
+        # ─────────────────────────────────────────────────────────────────
+
+        # 1) compute the x‐coordinate where horses begin:
+        start_x = x + w * 0.1 + 85
+
+        # 2) compute the two endpoints in y:
+        line_y_bottom = track_y  # bottom of that vertical segment
+        line_y_top = track_y + track_h  # top of that vertical segment
+
+        # 3) assign the two‐point list to self.start_line.points
+        self.start_line.points = [
+            start_x, line_y_bottom,
+            start_x, line_y_top
+        ]
+        # (width of the line was set in __init__; we only update points here)
+        # ─────────────────────────────────────────────────────────────────
 
     def _setup(self, dt=None):
         for h in self.horses:
@@ -286,7 +318,7 @@ class GameView(FloatLayout):
         gear = Button(
             text="",
             size_hint=(None, None), size=(45, 45),
-            pos_hint={"right": .04, "top": .99},
+            pos_hint={"right": .04, "top": 0.28},
             background_normal="assets/images/settings.png",
             background_down="assets/images/settings2.png",
             border=(0, 0, 0, 0),
@@ -458,7 +490,7 @@ class GameView(FloatLayout):
         book = Button(
             text="",
             size_hint=(None, None), size=(45, 45),
-            pos_hint={"right": .04, "top": .93},
+            pos_hint={"right": .04, "top": 0.34},
             background_normal="assets/images/tutorial1.png",
             background_down="assets/images/tutorial2.png",
             border=(0, 0, 0, 0),
@@ -767,7 +799,7 @@ class GameView(FloatLayout):
         ))
 
         self.deposit_input = TextInput(
-            text="0",
+            text="10",
             multiline=False,
             input_filter="int",
             foreground_color=(1, 1, 1, 1),
