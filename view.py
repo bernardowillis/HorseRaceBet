@@ -191,6 +191,11 @@ class GameView(FloatLayout):
         self._build_settings_button()
 
         # -------------------------------------------------------
+        # Tutorial button (top-right)
+        # -------------------------------------------------------
+        self._build_tutorial_button()
+
+        # -------------------------------------------------------
         # Misc. labels / popups
         # -------------------------------------------------------
         self.result_popup         = None
@@ -273,8 +278,8 @@ class GameView(FloatLayout):
     def _build_settings_button(self):
         gear = Button(
             text="",
-            size_hint=(None, None), size=(40, 40),
-            pos_hint={"right": .99, "top": .99},
+            size_hint=(None, None), size=(45, 45),
+            pos_hint={"right": .04, "top": .99},
             background_normal="assets/images/settings.png",
             background_down="assets/images/settings2.png",
             border=(0, 0, 0, 0),
@@ -282,6 +287,8 @@ class GameView(FloatLayout):
         )
         gear.bind(on_release=lambda *_: self._show_settings_popup())
         self.add_widget(gear)
+
+
 
     def _toggle_music(self, btn):
         self.music_muted = not self.music_muted
@@ -359,6 +366,22 @@ class GameView(FloatLayout):
         )
         close_btn.bind(on_release=lambda *_: settings_popup.dismiss())
         settings_popup.open()
+
+    # ──────────────────────────────────────────────────────────
+    #  Settings button + popup
+    # ──────────────────────────────────────────────────────────
+    def _build_tutorial_button(self):
+        book = Button(
+            text="",
+            size_hint=(None, None), size=(45, 45),
+            pos_hint={"right": .04, "top": .93},
+            background_normal="assets/images/tutorial1.png",
+            background_down="assets/images/tutorial2.png",
+            border=(0, 0, 0, 0),
+            background_color=(1, 1, 1, 1),
+        )
+        book.bind(on_release=lambda *_: self._show_settings_popup())
+        self.add_widget(book)
 
     # ──────────────────────────────────────────────────────────
     #  Betting / Deposit panel
@@ -440,8 +463,8 @@ class GameView(FloatLayout):
             btn = Button(
                 text=str(i + 1),
                 color=(1, 1, 1, 1),
-                background_normal="assets/images/texture6.png",
-                background_down="assets/images/texture8.png",
+                background_normal="assets/images/texture9.png",
+                background_down="assets/images/texture11.png",
                 border=(0, 0, 0, 0),
                 font_size="30sp",
                 font_name="Arcade"
@@ -671,24 +694,48 @@ class GameView(FloatLayout):
         content.add_widget(self.deposit_input)
 
         self._deposit_button_row = BoxLayout(size_hint=(1, 0.3), spacing=20)
+        # Create the "ADD" button
         add_btn = Button(
             text="ADD",
             color=(1, 1, 1, 1),
             background_normal="assets/images/texture10.png",
-            background_down="assets/images/texture4.png",
+            background_down="assets/images/texture12.png",
             font_size="20sp",
             font_name="Arcade",
             size_hint=(0.45, 1)
         )
+
+        # Add a black border to the ADD button
+        with add_btn.canvas.after:
+            Color(0, 0, 0, 1)
+            add_outline = Line(rectangle=(0, 0, 0, 0), width=2)
+
+        def update_add_border(*args):
+            add_outline.rectangle = (*add_btn.pos, *add_btn.size)
+
+        add_btn.bind(pos=update_add_border, size=update_add_border)
+
+        # Create the "CANCEL" button
         cancel_btn = Button(
             text="CANCEL",
             color=(1, 1, 1, 1),
             background_normal="assets/images/texture10.png",
-            background_down="assets/images/texture4.png",
+            background_down="assets/images/texture12.png",
             font_size="20sp",
             font_name="Arcade",
             size_hint=(0.45, 1)
         )
+
+        # Add a black border to the CANCEL button
+        with cancel_btn.canvas.after:
+            Color(0, 0, 0, 1)
+            cancel_outline = Line(rectangle=(0, 0, 0, 0), width=2)
+
+        def update_cancel_border(*args):
+            cancel_outline.rectangle = (*cancel_btn.pos, *cancel_btn.size)
+
+        cancel_btn.bind(pos=update_cancel_border, size=update_cancel_border)
+
         self._deposit_button_row.add_widget(add_btn)
         self._deposit_button_row.add_widget(cancel_btn)
         content.add_widget(self._deposit_button_row)
