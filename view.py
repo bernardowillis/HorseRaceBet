@@ -631,7 +631,7 @@ class GameView(FloatLayout):
         add_btn = Button(
             text="ADD",
             color=(1, 1, 1, 1),
-            background_normal="assets/images/texture2.png",
+            background_normal="assets/images/texture10.png",
             background_down="assets/images/texture4.png",
             font_size="20sp",
             font_name="Arcade",
@@ -640,7 +640,7 @@ class GameView(FloatLayout):
         cancel_btn = Button(
             text="CANCEL",
             color=(1, 1, 1, 1),
-            background_normal="assets/images/texture2.png",
+            background_normal="assets/images/texture10.png",
             background_down="assets/images/texture4.png",
             font_size="20sp",
             font_name="Arcade",
