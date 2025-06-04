@@ -869,7 +869,7 @@ class GameView(FloatLayout):
             # ── replace with this ──
             overlay = Widget()
             with overlay.canvas:
-                Color(0, 0, 0, 0.6)
+                Color(0, 0, 0, 0.7)
                 # cover everything except control_panel (which sits at y==0)
                 self._tutorial_rect = Rectangle(
                     pos=(0, self.control_panel.height),
@@ -885,10 +885,9 @@ class GameView(FloatLayout):
 
             self.add_widget(overlay)
             # put control_panel back on top:
-            self.remove_widget(self.control_panel)
-            self.add_widget(self.control_panel)
+            # self.remove_widget(self.control_panel)
+            # self.add_widget(self.control_panel)
             self._tutorial_overlay = overlay
-
 
         else:
             # update the overlay to cover everything above the control_panel
@@ -1047,6 +1046,26 @@ class GameView(FloatLayout):
         prev_btn.bind(on_release=lambda *_: self._step_previous())
         next_btn.bind(on_release=lambda *_: self._step_next())
         cancel_btn.bind(on_release=lambda *_: self._end_tutorial())
+
+        with self._tutorial_popup.canvas.after:
+            Color(0, 0, 0, 1)
+            outline = Line(
+                rectangle=(self._tutorial_popup.x,
+                           self._tutorial_popup.y,
+                           self._tutorial_popup.width,
+                           self._tutorial_popup.height),
+                width=2
+            )
+
+        def _update_tutorial_border(*args):
+            outline.rectangle = (
+                self._tutorial_popup.x,
+                self._tutorial_popup.y,
+                self._tutorial_popup.width,
+                self._tutorial_popup.height
+            )
+
+        self._tutorial_popup.bind(pos=_update_tutorial_border, size=_update_tutorial_border)
 
         self._tutorial_popup.open()
 
