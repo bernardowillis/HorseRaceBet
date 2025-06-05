@@ -7,6 +7,7 @@ from kivy.uix.textinput   import TextInput
 from kivy.uix.popup       import Popup
 from kivy.uix.image       import Image
 from kivy.graphics        import Color, Rectangle, Line
+from kivy.graphics import Ellipse, InstructionGroup
 from kivy.clock           import Clock
 from kivy.core.audio      import SoundLoader
 from kivy.core.window     import Window
@@ -126,6 +127,9 @@ class HorseSprite(Widget):
         self.animated_source = f"assets/images/horses/horserun{number}.gif"
         self.running         = False
 
+        # ── NEW ── keep track of a highlight instruction group:
+        self._highlight_group = None
+
         self.image = Image(
             source=self.static_source,
             size=self.size,
@@ -154,6 +158,13 @@ class HorseSprite(Widget):
         self.label.center_x = self.center_x - 18
         self.label.center_y = self.center_y
 
+        # ── NEW: if we have a highlight ellipse, update its pos/size:
+        if self._highlight_group:
+            padding = 8
+            ellipse = self._highlight_ellipse
+            ellipse.pos = (self.x - padding, self.y - padding)
+            ellipse.size = (self.width + padding * 2, self.height + padding * 2)
+
     def set_running(self, running: bool):
         if running == self.running:
             return
@@ -165,6 +176,53 @@ class HorseSprite(Widget):
             self.image.source     = self.static_source
             self.image.anim_delay = -1
         self.image.reload()
+
+    # ────────────────────────────────────────────────────────────────────
+    #  NEW METHODS FOR HIGHLIGHTING
+    # ────────────────────────────────────────────────────────────────────
+    def highlight(self):
+        """
+        Draw a semi‐transparent ellipse under this horse (inside its canvas.before).
+        """
+        if self._highlight_group:
+            return  # already highlighted
+
+        # 1) Create a small padding around the horse
+        padding = 8
+
+        # 2) Build an InstructionGroup: Color + Ellipse
+        group = InstructionGroup()
+        group.add(Color(1, 1, 0, 0.3))  # yellowish semi-transparent
+        ellipse = Ellipse(
+            pos=(self.x - padding, self.y - padding),
+            size=(self.width + padding * 2, self.height + padding * 2),
+        )
+        group.add(ellipse)
+
+        # 3) Remember references so we can update/remove later
+        self._highlight_group = group
+        self._highlight_ellipse = ellipse
+
+        # 4) Add it to this widget's canvas.before, so it's underneath the horse image
+        self.canvas.before.add(group)
+
+        # 5) Bind to pos/size so we move the ellipse if the horse moves or resizes
+        self.bind(pos=self._sync, size=self._sync)
+
+    def unhighlight(self):
+        """
+        Remove any highlight ellipse from this horse.
+        """
+        if not self._highlight_group:
+            return
+        # Unbind the sync (pos/size) if desired (not strictly required if entire widget is destroyed)
+        try:
+            self.canvas.before.remove(self._highlight_group)
+        except Exception:
+            pass
+        self.unbind(pos=self._sync, size=self._sync)
+        self._highlight_group = None
+        self._highlight_ellipse = None
 
 
 # ──────────────────────────────────────────────────────────────
@@ -191,7 +249,7 @@ class GameView(FloatLayout):
         self.pop_snd    = _load("assets/sounds/popup.mp3",          vol=1.0)
         self.pistol_snd = _load("assets/sounds/starterpistol.mp3",  vol=0.8)
         self.win_snd    = _load("assets/sounds/win.mp3",            vol=0.9)
-        self.disappointed_snd = _load("assets/sounds/disappointed.mp3", vol=0.7)
+        self.disappointed_snd = _load("assets/sounds/disappointed.mp3", vol=0.5)
         self.whip_snd = _load("assets/sounds/whip.mp3", vol=1.0)
 
         # ambience
@@ -279,7 +337,7 @@ class GameView(FloatLayout):
         # ────────────────────────────────────────────────────────
         self.leading_label = Label(
             text="",
-            color=(1, 1, 0, 1),
+            color=(1, 1, 1, 1),
             font_size="20sp",
             font_name="Arcade",
             size_hint=(0.5, None),
@@ -665,6 +723,13 @@ class GameView(FloatLayout):
         # ── Remember which horse was picked ──────────────────────────────
         self._selected_horse = horse_number
 
+        # ── NEW: highlight the chosen horse, unhighlight all others ───────
+        for sprite in self.track.horses:
+            if sprite.number == horse_number:
+                sprite.highlight()
+            else:
+                sprite.unhighlight()
+
         try:
             self.controller.place_bet(horse_number, amount)
         except Exception:
@@ -742,6 +807,10 @@ class GameView(FloatLayout):
 
         # ── race is no longer active ───────────────────────────────
         self._race_active = False
+
+        # ── NEW: clear any lingering highlight ──────────────────────────
+        for sprite in self.track.horses:
+            sprite.unhighlight()
 
         # ── clear the previously‐selected horse ────────────────────
         self._selected_horse = None
