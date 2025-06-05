@@ -11,7 +11,6 @@ from kivy.clock           import Clock
 from kivy.core.audio      import SoundLoader
 from kivy.core.window     import Window
 from kivy.core.text       import LabelBase
-from kivy.graphics import Color, Ellipse, InstructionGroup
 
 # ──────────────────────────────────────────────────────────────
 # Register custom font
@@ -213,10 +212,6 @@ class GameView(FloatLayout):
         # ── NEW STATE VARIABLES ───────────────────────────────────────────
         self._race_active = False
         self._selected_horse = None  # which horse the player chose (1..6)
-        self._bet_indicator = None  # will hold InstructionGroup()
-        self._bet_ellipse = None  # direct reference to the Ellipse
-        self._bet_bound_sprite = None  # which HorseSprite we bound the callback to
-        self._bet_update_callback = None  # the callback function itself
         # ─────────────────────────────────────────────────────────────────
 
         # -------------------------------------------------------
@@ -468,8 +463,6 @@ class GameView(FloatLayout):
         language_btn.bind(
             on_release=lambda *_: (self._play_click(), self._change_language()))  # if you add language logic
         close_btn.bind(on_release=lambda *_: (self._play_click(), self.settings_popup.dismiss()))
-        # (language_btn can be bound to your own handler, e.g. self._change_language)
-        # language_btn.bind(on_release=lambda *_: self._change_language())
 
         close_btn.bind(on_release=lambda *_: self.settings_popup.dismiss())
 
@@ -526,7 +519,16 @@ class GameView(FloatLayout):
             border=(0, 0, 0, 0),
             background_color=(1, 1, 1, 1),
         )
-        self.tutorial_btn.bind(on_release=lambda *_: self._start_tutorial())
+
+        def _on_tut_pressed(*_):
+            # Play the “popup” sound if not muted
+            if self.pop_snd and not self.sounds_muted:
+                self.pop_snd.stop()
+                self.pop_snd.play()
+            # Then start the tutorial
+            self._start_tutorial()
+
+        self.tutorial_btn.bind(on_release=_on_tut_pressed)
         self.add_widget(self.tutorial_btn)
 
     # ──────────────────────────────────────────────────────────
@@ -644,6 +646,7 @@ class GameView(FloatLayout):
     #  Bet button handler
     # ──────────────────────────────────────────────────────────
     def _on_bet(self, instance):
+        print(f"on_bet selected horse: {self._selected_horse}")
         # Play click + pistol as before …
         if self.click_snd and not self.sounds_muted:
             self.click_snd.stop()
@@ -661,7 +664,6 @@ class GameView(FloatLayout):
 
         # ── Remember which horse was picked ──────────────────────────────
         self._selected_horse = horse_number
-        print(f"on_bet selected horse: {self._selected_horse}")
 
         try:
             self.controller.place_bet(horse_number, amount)
@@ -685,65 +687,6 @@ class GameView(FloatLayout):
             self.tutorial_btn.disabled = True
 
         self._race_active = True
-
-        if self._selected_horse is not None:
-            idx = self._selected_horse - 1
-            if 0 <= idx < len(self.track.horses):
-                sprite = self.track.horses[idx]
-
-                # 1) Remove any old ellipse‐widget if it exists
-                if self._bet_indicator:
-                    # Also unbind from the old sprite
-                    if self._bet_bound_sprite and self._bet_update_callback:
-                        self._bet_bound_sprite.unbind(
-                            pos=self._bet_update_callback,
-                            size=self._bet_update_callback
-                        )
-                    self.track.remove_widget(self._bet_indicator)
-                    self._bet_indicator = None
-                    self._bet_ellipse = None
-                    self._bet_bound_sprite = None
-                    self._bet_update_callback = None
-
-                # 2) Create a tiny Widget just to hold our Ellipse instruction
-                ellipse_widget = Widget()
-                with ellipse_widget.canvas:
-                    Color(0, 0, 0, 0.5)  # semi‐transparent black
-                    ellipse = Ellipse(size=(0, 0))  # placeholder; set pos/size next
-
-                self._bet_indicator = ellipse_widget
-                self._bet_ellipse = ellipse
-
-                # 3) Compute initial ellipse dimensions & place under the chosen horse
-                w0 = sprite.width * 1.2
-                h0 = sprite.height * 0.4
-                x0 = sprite.center_x - w0 / 2
-                y0 = sprite.y - h0 / 2  # tweak this if you want it higher/lower
-                ellipse.pos = (x0, y0)
-                ellipse.size = (w0, h0)
-
-                # 4) Insert ellipse_widget so it draws just above the finish line but under horses
-                fin = self.track.finish_line_image
-                finish_index = self.track.children.index(fin)
-                # Inserting at finish_index makes elliptical drawn just after the finish_line
-                self.track.add_widget(ellipse_widget, index=finish_index)
-
-                # 5) Bind sprite → ellipse so it follows the horse as it moves
-                def _update_bet_ellipse(*_):
-                    w1 = sprite.width * 1.2
-                    h1 = sprite.height * 0.4
-                    x1 = sprite.center_x - w1 / 2
-                    y1 = sprite.y - h1 / 2  # tweak this for vertical offset under the horse
-                    self._bet_ellipse.pos = (x1, y1)
-                    self._bet_ellipse.size = (w1, h1)
-
-                # Store both the bound sprite and the callback so we can unbind later
-                self._bet_bound_sprite = sprite
-                self._bet_update_callback = _update_bet_ellipse
-                sprite.bind(
-                    pos=_update_bet_ellipse,
-                    size=_update_bet_ellipse
-                )
 
         # ── existing gallop logic ───────────────────────────────────────
         if self.gallop_snd and not self.music_muted:
@@ -800,25 +743,7 @@ class GameView(FloatLayout):
         # ── race is no longer active ───────────────────────────────
         self._race_active = False
 
-        # ── remove the ellipse indicator if it exists ──────────────
-        if self._bet_indicator:
-            # 1) Unbind from the old sprite
-            if self._bet_bound_sprite and self._bet_update_callback:
-                self._bet_bound_sprite.unbind(
-                    pos=self._bet_update_callback,
-                    size=self._bet_update_callback
-                )
-
-            # 2) Remove the ellipse Widget from the track
-            self.track.remove_widget(self._bet_indicator)
-
-            # 3) Clear all references
-            self._bet_indicator = None
-            self._bet_ellipse = None
-            self._bet_bound_sprite = None
-            self._bet_update_callback = None
-
-        # ── clear the previously‐selected horse so no ellipse appears next time ──
+        # ── clear the previously‐selected horse ────────────────────
         self._selected_horse = None
 
     # ──────────────────────────────────────────────────────────
@@ -1345,6 +1270,4 @@ class GameView(FloatLayout):
         if self.highlight_widget:
             self.remove_widget(self.highlight_widget)
             self.highlight_widget = None
-
-
 
